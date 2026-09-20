@@ -1,5 +1,14 @@
 # Model adapter development guide — *how to add a new CDM model*
 
+> **Phase 2/3 note:** since the config-driven integration landed, the
+> recommended path for a new model is a **config package**
+> (`config/models/<code>/{model,devices,log_sources,errors,events}.yaml`)
+> plus a thin adapter module in a package (`app/adapters/<code>/`), as done
+> for P2600N and P2800N — see
+> [model-integrations.md](model-integrations.md). This guide's registry
+> contract and detection rules still apply; the single-file inline-mapping
+> style shown below is the legacy example.
+
 Adding a model (e.g. a future **P3400N**) requires **zero changes** to the
 core: no API routes, no services, no schema edits. Everything goes through
 the model registry.

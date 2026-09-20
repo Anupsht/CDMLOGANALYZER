@@ -42,7 +42,9 @@ def test_list_models(client):
 def test_get_model_by_code(client):
     body = client.get("/api/models/P2800N").json()
     assert body["code"] == "P2800N"
-    assert "ecat" in body["supported_sources"]
+    # Phase 3: P2800N has its own source set (not P2600N terminology).
+    assert {"app", "ifm", "jrn", "siu"}.issubset(set(body["supported_sources"]))
+    assert "ecat" not in body["supported_sources"]
 
 
 def test_get_unknown_model_404_envelope(client):

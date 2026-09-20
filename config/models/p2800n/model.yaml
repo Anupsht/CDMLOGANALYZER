@@ -1,0 +1,51 @@
+# =============================================================================
+# P2800N model configuration — identity, correlation rules, key extraction
+# =============================================================================
+# ⚠️ SYNTHETIC MAPPINGS (same caveat as P2600N): built from the file inventory
+# naming conventions; line formats are documented templates pending real logs.
+# The formats here are *deliberately different* from P2600N (pipe-delimited,
+# different key names, different timestamp precision) to prove that model
+# differences never leak into the universal engine.
+# =============================================================================
+
+code: P2800N
+display_name: GRG P2800N
+vendor: GRG Banking
+
+# Correlation uses *universal* key names (raw P2800N tokens like 'tid' are
+# mapped to them by key_extract rules in this file and log_sources.yaml).
+correlation:
+  primary_key: txn_id
+  auto_id_prefix: P2800N-AUTO
+  rules:
+    - name: txn_id_exact        # raw token: tid=
+      key: txn_id
+      weight: 1.0
+    - name: session_window     # raw token: sess=
+      key: session_id
+      weight: 0.6
+      window_seconds: 240
+    - name: journal_sequence   # raw token: J|seq|
+      key: journal_seq
+      weight: 0.5
+      window_seconds: 600
+    - name: host_reference     # raw token: href=
+      key: host_ref
+      weight: 0.7
+
+# P2800N uses different key spellings — mapped to the same universal keys.
+key_extract:
+  - key: txn_id
+    pattern: '\btid[=:]\s*([A-Za-z0-9_-]+)'
+  - key: session_id
+    pattern: '\bsess[=:]\s*([A-Za-z0-9_-]+)'
+  - key: amount
+    pattern: '\bamt[=:]\s*([0-9]+(?:\.[0-9]+)?)'
+    type: float
+  - key: currency
+    pattern: '\bcur[=:]\s*([A-Z]{3})'
+  - key: host_ref
+    pattern: '\bhref[=:]\s*([A-Za-z0-9_-]+)'
+  - key: journal_seq
+    pattern: '\bjseq[=:]\s*([0-9]+)'
+    type: int

@@ -59,17 +59,56 @@ LOG_SOURCES = [
     ("unknown", "Unknown", "Source could not be determined."),
 ]
 
-PARSERS = [
-    {
-        "code": "generic_text",
-        "version": "1.0.0",
-        "name": "Generic Text Parser",
-        "source_type": "unknown",
-        "parser_class": "app.parsers.generic_text_parser.GenericTextParser",
-        "description": "Fallback line parser: preserves raw text, detects "
-        "timestamps and log levels. Used until model-specific parsers ship.",
-    }
-]
+
+
+def _seed_parser_registry(session) -> None:
+    """Upsert parser_versions from every registered parser (data-driven).
+
+    Covers the core registry (generic parser) and each model adapter's
+    configured parsers (P2600N/P2800N YAML packages).
+    """
+    from app.core.registry import load_adapters, model_registry
+    from app.models.parser import ParserVersion
+    from app.parsers.registry import load_builtin_parsers, parser_registry
+
+    load_adapters()
+    load_builtin_parsers()
+
+    candidates: list[dict] = []
+    for parser in parser_registry.all():
+        candidates.append(
+            {
+                "code": parser.code,
+                "version": getattr(parser, "version", "0.0.0"),
+                "name": getattr(parser, "description", None) or parser.code,
+                "source_type": parser.get_source_type(),
+                "parser_class": f"{type(parser).__module__}.{type(parser).__name__}",
+                "description": getattr(parser, "description", None),
+            }
+        )
+    for code in model_registry.codes():
+        adapter = model_registry.get_model(code)
+        for parser in adapter.iter_parsers():
+            candidates.append(
+                {
+                    "code": parser.code,
+                    "version": getattr(parser, "version", "0.0.0"),
+                    "name": getattr(parser, "description", None) or parser.code,
+                    "source_type": parser.get_source_type(),
+                    "parser_class": f"{type(parser).__module__}.{type(parser).__name__}",
+                    "description": getattr(parser, "description", None),
+                }
+            )
+
+    for spec in candidates:
+        row = (
+            session.query(ParserVersion)
+            .filter(ParserVersion.code == spec["code"], ParserVersion.version == spec["version"])
+            .one_or_none()
+        )
+        if row is None:
+            session.add(ParserVersion(**spec))
+            logger.info("Seeded parser", extra={"parser_code": spec["code"]})
 
 
 def seed_reference_data() -> None:
@@ -95,16 +134,8 @@ def seed_reference_data() -> None:
                 session.add(LogSource(code=code, name=name, description=description))
                 logger.info("Seeded log source", extra={"source_code": code})
 
-        # Parser versions
-        for spec in PARSERS:
-            row = (
-                session.query(ParserVersion)
-                .filter(ParserVersion.code == spec["code"], ParserVersion.version == spec["version"])
-                .one_or_none()
-            )
-            if row is None:
-                session.add(ParserVersion(**spec))
-                logger.info("Seeded parser", extra={"parser_code": spec["code"]})
+        # Parser versions (core registry + model adapter configurations)
+        _seed_parser_registry(session)
 
         # Default per-model configuration
         for model in session.query(MachineModel).all():

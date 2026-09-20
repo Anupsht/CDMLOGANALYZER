@@ -1,0 +1,16 @@
+# =============================================================================
+# P2800N device-name patterns (⚠️ SYNTHETIC names pending real docs)
+# =============================================================================
+patterns:
+  - pattern: '\bAPP\b'
+    device: P2800N-APP
+  - pattern: '\bSIU\b'
+    device: SIU
+  - pattern: '\bIFM\b'
+    device: IFM
+  - pattern: '\bJRN\b'
+    device: JRN
+  - pattern: '(?i)\bcim'
+    device: CIM
+  - pattern: '(?i)\bcassette[_ ]?([0-9]+)'
+    device: Cassette-$1

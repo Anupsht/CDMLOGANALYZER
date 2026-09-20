@@ -106,10 +106,14 @@ def test_rejects_non_zip(tmp_path):
 
 def test_inline_upload_zip_end_to_end(client, tmp_path):
     """A ZIP upload through the API extracts children and parses logs."""
+    # Lines use the P2600N eCAT format (config/models/p2600n/log_sources.yaml).
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
-        zf.writestr("P2600N/ecat.log", b"2026-02-01 10:00:00 INFO eCAT boot ok\n")
-        zf.writestr("P2600N/keeper.log", b"2026-02-01 10:00:01 INFO keeper ready\n")
+        zf.writestr(
+            "P2600N/ecat.log",
+            b"2026-02-01 10:00:00.000 [eCAT] INFO eCAT boot ok\n"
+            b"2026-02-01 10:00:05.000 [eCAT] INFO keeper ready\n",
+        )
         zf.writestr("P2600N/readme.txt", b"notes for the service engineer\n")
     buf.seek(0)
 
@@ -123,7 +127,7 @@ def test_inline_upload_zip_end_to_end(client, tmp_path):
 
     detail = client.get(f"/api/logs/{body['id']}").json()
     children = client.get("/api/logs", params={"file_role": "extracted"}).json()["items"]
-    assert len(children) == 3
+    assert len(children) == 2
     # Provenance is recorded for every extracted file.
     for child in children:
         assert child["parent_file_id"] == body["id"]
@@ -132,12 +136,12 @@ def test_inline_upload_zip_end_to_end(client, tmp_path):
 
     # Source detection worked on inner files.
     sources = {c["log_source"]["code"] for c in children if c.get("log_source")}
-    assert {"ecat", "keeper"}.issubset(sources)
+    assert "ecat" in sources
 
     # Raw lines stored for parsed children.
     ecat_child = next(c for c in children if c["log_source"]["code"] == "ecat")
     lines = client.get(f"/api/logs/{ecat_child['id']}/lines").json()
-    assert lines["total"] == 1
-    assert lines["items"][0]["raw_text"] == "2026-02-01 10:00:00 INFO eCAT boot ok"
+    assert lines["total"] == 2
+    assert lines["items"][0]["raw_text"] == "2026-02-01 10:00:00.000 [eCAT] INFO eCAT boot ok"
     assert lines["items"][0]["timestamp"] is not None
     _ = detail

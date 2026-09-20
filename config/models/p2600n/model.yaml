@@ -1,0 +1,51 @@
+# =============================================================================
+# P2600N model configuration — identity, correlation rules, key extraction
+# =============================================================================
+# ⚠️ SYNTHETIC MAPPINGS: established from the *file inventory* of the provided
+# 2026-07-03 export (file names only) because sanitized log contents were not
+# yet available to the build. Patterns below are documented templates —
+# validate against real logs before trusting field semantics.
+# See docs/model-integrations.md for the assumptions & UNKNOWN-field list.
+# =============================================================================
+
+code: P2600N
+display_name: GRG P2600N
+vendor: GRG Banking
+
+# Correlation is multi-key with confidence; no single identifier is trusted.
+correlation:
+  primary_key: txn_id
+  auto_id_prefix: P2600N-AUTO
+  rules:
+    - name: txn_id_exact      # strongest: shared transaction id
+      key: txn_id
+      weight: 1.0
+    - name: session_window    # same session + time window
+      key: session_id
+      weight: 0.6
+      window_seconds: 300
+    - name: journal_sequence  # journal proximity (weak)
+      key: journal_seq
+      weight: 0.5
+      window_seconds: 600
+    - name: host_reference    # host round-trip reference
+      key: host_ref
+      weight: 0.7
+
+# Key extraction from raw lines. First successful rule per key wins.
+# Per-source rules (log_sources.yaml) are tried before these.
+key_extract:
+  - key: txn_id
+    pattern: 'TXN[=:]\s*([A-Za-z0-9_-]+)'
+  - key: session_id
+    pattern: 'SESSION[=:]\s*([A-Za-z0-9_-]+)'
+  - key: amount
+    pattern: 'AMOUNT[=:]\s*([0-9]+(?:\.[0-9]+)?)'
+    type: float
+  - key: currency
+    pattern: 'CURRENCY[=:]\s*([A-Z]{3})'
+  - key: host_ref
+    pattern: 'REF[=:]\s*([A-Za-z0-9_-]+)'
+  - key: journal_seq
+    pattern: '(?:SEQ|JRN)[=:]\s*([0-9]+)'
+    type: int

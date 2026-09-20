@@ -1,0 +1,79 @@
+# =============================================================================
+# P2800N log sources & parser definitions
+# =============================================================================
+# Sources per the P2800N export naming (SYNTHETIC line formats — see
+# model.yaml): application log, JRN journal, SIU sensor log, IFM host log.
+# P2800N is NOT assumed to have P2600N sources (no Keeper/NoteInfo mapping):
+# absence of a source here is intentional, not an omission.
+# =============================================================================
+
+app:
+  name: P2800N application log
+  description: Main application log (pipe-delimited transaction flow).
+  filename_patterns: ['(?i)p2800n[_-]?app']
+  parser:
+    code: p2800n_app
+    type: line
+    extensions: [txt, log]
+    content_signatures: ['\|APP\|']
+    line_pattern: '^<(?P<ts>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})>\|(?P<device>[A-Z0-9]+)\|(?P<level>[A-Z]+)\|(?P<msg>.*)$'
+    timestamp_format: '%Y-%m-%d %H:%M:%S'
+  key_extract:
+    - key: txn_id
+      pattern: '\btid[=:]\s*([A-Za-z0-9_-]+)'
+
+jrn:
+  name: P2800N journal (JRN)
+  description: Journal rows with sequence, amount, result code.
+  # NB: \b never matches before/after '_' (underscore is a word char), so
+  # source tokens use explicit separator classes instead.
+  filename_patterns:
+    - '(?i)(?:^|[^a-z0-9])jrn(?:$|[^a-z0-9])'
+    - '(?i)p2800n[_-]?journal'
+  parser:
+    code: p2800n_jrn
+    type: line
+    extensions: [txt, log]
+    content_signatures: ['^J\|']
+    line_pattern: '^J\|(?P<jseq>\d+)\|(?P<ts>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\|(?P<txn>[A-Za-z0-9_-]+)\|(?P<amount>[0-9.]+)\|(?P<currency>[A-Z]{3})\|(?P<status>[A-Z0-9_]+)$'
+    timestamp_format: '%Y-%m-%d %H:%M:%S'
+  key_extract:
+    - key: journal_seq
+      pattern: '^J\|(\d+)\|'
+      type: int
+    - key: txn_id
+      pattern: '\|([A-Za-z0-9_-]{10,})\|'
+    - key: amount
+      pattern: '\|([0-9]+\.[0-9]{2})\|[A-Z]{3}\|'
+      type: float
+    - key: currency
+      pattern: '\|[0-9.]+\|([A-Z]{3})\|'
+
+siu:
+  name: P2800N SIU (sensor input unit) log
+  description: Sensor mask changes.
+  filename_patterns: ['(?i)(?:^|[^a-z0-9])siu']
+  parser:
+    code: p2800n_siu
+    type: line
+    extensions: [txt, log]
+    content_signatures: [' SIU ']
+    line_pattern: '^(?P<ts>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) (?P<device>SIU)\s+(?P<msg>.*)$'
+    timestamp_format: '%Y-%m-%d %H:%M:%S'
+
+ifm:
+  name: P2800N IFM (host interface) log
+  description: Host request/response with result codes.
+  filename_patterns: ['(?i)(?:^|[^a-z0-9])ifm(?:$|[^a-z0-9])']
+  parser:
+    code: p2800n_ifm
+    type: line
+    extensions: [txt, log]
+    content_signatures: ['\] IFM ']
+    line_pattern: '^\[(?P<ts>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\] (?P<device>IFM)\s+(?P<msg>.*)$'
+    timestamp_format: '%Y-%m-%d %H:%M:%S'
+  key_extract:
+    - key: txn_id
+      pattern: '\btid[=:]\s*([A-Za-z0-9_-]+)'
+    - key: host_ref
+      pattern: '\bhref[=:]\s*([A-Za-z0-9_-]+)'

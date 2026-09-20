@@ -1,0 +1,103 @@
+# =============================================================================
+# P2600N message patterns → universal event codes
+# =============================================================================
+# ⚠️ SYNTHETIC patterns (see model.yaml). First match wins — order by
+# specificity. Only mappings with plausible evidence exist; everything else
+# falls through to UNMAPPED by the engine.
+# =============================================================================
+
+ecat:
+  - pattern: 'TRANSACTION_START'
+    event: TRANSACTION_STARTED
+  - pattern: 'CASH_INSERTED'
+    event: CASH_INSERTED
+  - pattern: 'CASH_ACCEPTED'
+    event: CASH_ACCEPTED
+  - pattern: 'COUNTING_COMPLETED'
+    event: CASH_COUNTING_COMPLETED
+  - pattern: 'VALIDATION_PASSED'
+    event: VALIDATION_PASSED
+  - pattern: 'VALIDATION_FAILED'
+    event: VALIDATION_FAILED
+    severity: WARNING
+  - pattern: 'HOST_REQUEST'
+    event: HOST_REQUEST
+  - pattern: 'HOST_RESPONSE.*RESULT\s*=\s*APPROVED'
+    event: HOST_RESPONSE
+  - pattern: 'HOST_RESPONSE.*RESULT\s*=\s*DECLINED'
+    event: HOST_DECLINED
+    severity: WARNING
+  - pattern: 'CASH_STORED'
+    event: CASH_STORED
+  - pattern: 'CASH_RETURNED'
+    event: CASH_RETURNED
+  - pattern: 'CASH_REJECTED'
+    event: CASH_REJECTED
+    severity: WARNING
+  - pattern: 'TRANSACTION_END.*STATUS\s*=\s*SUCCESS'
+    event: TRANSACTION_COMPLETED
+  # A declined transaction still *completed* its flow; the DECLINE itself is
+  # captured by HOST_DECLINED and drives the universal status DECLINED.
+  - pattern: 'TRANSACTION_END.*STATUS\s*=\s*DECLINED'
+    event: TRANSACTION_COMPLETED
+    severity: WARNING
+  - pattern: 'TRANSACTION_END.*STATUS\s*=\s*FAILED'
+    event: TRANSACTION_FAILED
+    severity: ERROR
+
+cim:
+  - pattern: 'motor .* start'
+    event: MOTOR_STARTED
+  - pattern: 'motor .* stop'
+    event: MOTOR_STOPPED
+  - pattern: 'sensor\s+\S+\s+changed'
+    event: SENSOR_CHANGED
+    severity: DEBUG
+  - pattern: 'escrow.*(in|accepted)'
+    event: CASH_ACCEPTED
+  - pattern: 'unavailable|offline|not ready'
+    event: DEVICE_UNAVAILABLE
+    severity: WARNING
+  - pattern: 'note to stacker|notes stacked'
+    event: CASH_STORED
+  - pattern: 'notes to reject bin|rejected'
+    event: CASH_REJECTED
+    severity: WARNING
+
+keeper:
+  - pattern: 'presented'
+    event: CASH_RETURNED
+  - pattern: 'retracted|retained'
+    event: NOTE_RECYCLED
+    severity: DEBUG
+
+jou:
+  - pattern: '\|DISPENSE\|.*\|OK$'
+    event: CASH_STORED
+  - pattern: '\|DISPENSE\|.*\|(?:NOK|FAILED)$'
+    event: TRANSACTION_FAILED
+    severity: ERROR
+  - pattern: '\|CANCEL'
+    event: CASH_RETURNED
+    severity: WARNING
+
+noteinfo:
+  - pattern: 'Result\s*=,\s*|,ACCEPT'
+    event: CASH_ACCEPTED
+    severity: DEBUG
+
+printer:
+  - pattern: 'receipt printed'
+    event: RECEIPT_PRINTED
+    severity: DEBUG
+
+host:
+  - pattern: 'SEND.*HOST_REQUEST|HOST_REQUEST'
+    event: HOST_REQUEST
+  - pattern: 'RECV.*APPROV'
+    event: HOST_RESPONSE
+  - pattern: 'RECV.*DECLIN'
+    event: HOST_DECLINED
+    severity: WARNING
+
+default: []   # sources without mappings → UNMAPPED

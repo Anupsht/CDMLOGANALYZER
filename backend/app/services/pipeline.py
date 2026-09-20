@@ -2,14 +2,18 @@
 
     UPLOAD → VALIDATE → STORE → EXTRACT → IDENTIFY FILES
            → IDENTIFY LOG SOURCE → SELECT PARSER → PARSE → STORE RAW DATA
-
-Phase 1 scope only: raw storage + identification + generic parsing.
-Transaction correlation and diagnosis are later phases.
+           → CORRELATE (Phase 3: universal transaction reconstruction)
 
 The pipeline runs inside a background task (Celery worker, or the
 in-process inline queue when Redis is not configured). Status updates
 are committed per stage so ``GET /api/logs/{id}/status`` reflects live
 progress.
+
+Phase 3 addition: when a machine model is identified for a file, its
+adapter normalizes parsed lines into universal events; after all files
+of the upload are parsed, the universal correlator groups events into
+transactions (see app/analysis — no model-specific logic here).
+Correlation failures never fail the upload itself.
 """
 
 from __future__ import annotations
@@ -20,6 +24,7 @@ from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
 
+from app.analysis.events import NormalizedEvent
 from app.core.config import get_settings
 from app.core.errors import ArchiveError
 from app.core.registry import model_registry
@@ -28,6 +33,7 @@ from app.models.log_file import LogFile, LogLine, LogSource
 from app.parsers.base import FileContext
 from app.parsers.registry import parser_registry
 from app.services import audit_service, detection_service, upload_service
+from app.services.detection_service import SourceDetection
 from app.services.zip_service import zip_extractor
 from app.utils.file_storage import FileStorage
 
@@ -66,16 +72,37 @@ def run_pipeline(file_id: str) -> dict:
         try:
             _validate(session, row, storage)
             children = _extract(session, row, storage)
-            results = []
+            results: list[bool] = []
+            events_by_model: dict[str, list[NormalizedEvent]] = {}
             for child in children:
                 try:
-                    results.append(_identify_and_parse(session, child, storage))
+                    ok, events = _identify_and_parse(session, child, storage)
+                    results.append(ok)
+                    for event in events:
+                        events_by_model.setdefault(event.model_code, []).append(event)
                 except Exception as exc:
                     logger.exception(
                         "File processing failed", extra={"operation": "pipeline.file", "file_id": child.id}
                     )
                     _set_status(session, child, "FAILED", f"{type(exc).__name__}: {exc}")
                     results.append(False)
+
+            # ---- CORRELATE (Phase 3): universal transaction reconstruction ----
+            transaction_count = 0
+            if events_by_model:
+                _set_status(session, row, "CORRELATING")
+                try:
+                    from app.services.transaction_service import transaction_service
+
+                    transaction_count = transaction_service.correlate_and_store(
+                        session, row, events_by_model
+                    )
+                except Exception as exc:
+                    # Correlation failure must never fail the upload itself.
+                    logger.exception(
+                        "Correlation failed (upload kept)",
+                        extra={"operation": "pipeline.correlate", "error": str(exc)},
+                    )
 
             # Overall status for the upload (parent for ZIPs).
             if all(results):
@@ -85,12 +112,10 @@ def run_pipeline(file_id: str) -> dict:
             else:
                 final = "FAILED"
             processed = sum(1 for ok in results if ok)
-            _set_status(
-                session,
-                row,
-                final,
-                f"{processed}/{len(results)} file(s) processed successfully",
-            )
+            message = f"{processed}/{len(results)} file(s) processed successfully"
+            if transaction_count:
+                message += f"; {transaction_count} transaction(s) reconstructed"
+            _set_status(session, row, final, message)
             row.processing_finished_at = _utcnow()
             session.commit()
 
@@ -99,7 +124,11 @@ def run_pipeline(file_id: str) -> dict:
                 action="upload.processed",
                 entity_type="log_file",
                 entity_id=row.id,
-                detail={"status": final, "files": len(results)},
+                detail={
+                    "status": final,
+                    "files": len(results),
+                    "transactions": transaction_count,
+                },
             )
             session.commit()
             logger.info(
@@ -214,8 +243,14 @@ def _extract(session: Session, row: LogFile, storage: FileStorage) -> list[LogFi
     return children
 
 
-def _identify_and_parse(session: Session, row: LogFile, storage: FileStorage) -> bool:
-    """IDENTIFY + PARSE stages for a single (stored) file."""
+def _identify_and_parse(
+    session: Session, row: LogFile, storage: FileStorage
+) -> tuple[bool, list[NormalizedEvent]]:
+    """IDENTIFY + PARSE stages for a single (stored) file.
+
+    Returns ``(ok, normalized_events)`` — events are empty when no model
+    adapter is available (raw storage only).
+    """
     # Non-log payloads extracted from archives are preserved, not parsed.
     if row.file_type not in PROCESSABLE_EXTENSIONS:
         _set_status(
@@ -224,10 +259,10 @@ def _identify_and_parse(session: Session, row: LogFile, storage: FileStorage) ->
             "COMPLETED",
             "Stored for evidence only (not a recognized log format).",
         )
-        return True
+        return True, []
     if row.file_type == "zip":
         _set_status(session, row, "COMPLETED", "Nested archive stored; recursive extraction is a future phase.")
-        return True
+        return True, []
 
     _set_status(session, row, "IDENTIFYING")
     path = storage.resolve(row.file_path)
@@ -237,20 +272,14 @@ def _identify_and_parse(session: Session, row: LogFile, storage: FileStorage) ->
     if row.original_filename:
         ctx.filename = row.original_filename
 
-    # ---- log source identification ----
-    detection = detection_service.detect(ctx)
-    source_row = _get_or_create_source(session, detection.source_code)
-    row.log_source_id = source_row.id
-    row.source_confidence = detection.confidence
-    row.detection_method = detection.method
-    session.commit()
-
     # ---- machine model detection (registry-driven, never hard-coded) ----
+    # Runs first so the model adapter can refine source detection below.
+    adapter = None
     if row.machine_model_id is None:
-        adapters = [
-            adapter for adapter in model_registry if model_registry.is_enabled(adapter.code)
+        candidates = [
+            candidate for candidate in model_registry if model_registry.is_enabled(candidate.code)
         ]
-        model_code, confidence, method = detection_service.detect_model(ctx, adapters)
+        model_code, confidence, method = detection_service.detect_model(ctx, candidates)
         if model_code:
             from app.models.machine import MachineModel
 
@@ -270,24 +299,58 @@ def _identify_and_parse(session: Session, row: LogFile, storage: FileStorage) ->
                     },
                 )
     session.commit()
+    if row.machine_model is not None:
+        adapter = model_registry.get_model(row.machine_model.code)
 
-    # ---- parser selection ----
-    _set_status(session, row, "PARSING")
-    adapter = model_registry.get_model(
-        row.machine_model.code if row.machine_model else ""
-    )
-    preferred: list[str] = []
+    # ---- log source identification ----
+    detection = detection_service.detect(ctx)
+    # Model adapters know their own filename conventions (data-driven from
+    # log_sources.yaml) and outrank the generic rules.
     if adapter is not None:
-        hint = adapter.get_parser(ctx)
-        preferred = [hint.code] if hint is not None else []
-    parser = parser_registry.select(ctx, preferred_codes=preferred)
+        model_detection = adapter.detect_source(ctx)
+        if model_detection is not None and model_detection.confidence >= detection.confidence:
+            source_code = model_detection.matched_on.removeprefix("source:")
+            detection = SourceDetection(
+                source_code,
+                model_detection.confidence,
+                model_detection.method,
+                model_detection.matched_on,
+            )
+    source_row = _get_or_create_source(session, detection.source_code)
+    row.log_source_id = source_row.id
+    row.source_confidence = detection.confidence
+    row.detection_method = detection.method
+    session.commit()
+
+    # ---- parser selection (adapter-scoped first, then global registry) ----
+    _set_status(session, row, "PARSING")
+    parser = adapter.get_parser(ctx) if adapter is not None else None
+    if parser is None:
+        parser = parser_registry.select(ctx)
 
     result = parser.parse_file(ctx)
-    _store_lines(session, row, result, source_code=source_row.code)
+    stored_lines = _store_lines(session, row, result, source_code=source_row.code)
 
     row.parser_code = parser.code
     row.parser_version = parser.version
     row.line_count = len(result.lines)
+
+    # ---- event normalization (universal engine + adapter config) ----
+    events: list[NormalizedEvent] = []
+    if adapter is not None:
+        for parsed, line_row in zip(result.lines, stored_lines):
+            parsed.raw_row = line_row  # evidence link for the normalized event
+            try:
+                events.append(adapter.normalize_event(parsed, source_row.code))
+            except Exception:
+                logger.exception(
+                    "Event normalization failed",
+                    extra={
+                        "operation": "pipeline.normalize",
+                        "file_id": row.id,
+                        "line": parsed.line_number,
+                    },
+                )
 
     if result.errors:
         error_sample = "; ".join(result.errors[:3])
@@ -304,7 +367,7 @@ def _identify_and_parse(session: Session, row: LogFile, storage: FileStorage) ->
             "COMPLETED",
             f"Parsed {row.line_count} line(s) with {parser.code}@{parser.version}",
         )
-    return row.status != "FAILED"
+    return row.status != "FAILED", events
 
 
 def _get_or_create_source(session: Session, code: str) -> LogSource:
@@ -320,7 +383,9 @@ def _get_or_create_source(session: Session, code: str) -> LogSource:
     return source
 
 
-def _store_lines(session: Session, row: LogFile, result, *, source_code: str) -> None:
+def _store_lines(session: Session, row: LogFile, result, *, source_code: str) -> list[LogLine]:
+    """Persist raw lines; returns the rows in the same order as result.lines."""
+    stored: list[LogLine] = []
     batch: list[LogLine] = []
     for parsed in result.lines:
         # Prefer the *detected* source; fall back to the parser's own type.
@@ -329,17 +394,17 @@ def _store_lines(session: Session, row: LogFile, result, *, source_code: str) ->
             if source_code and source_code != "unknown"
             else (parsed.source or source_code)
         )
-        batch.append(
-            LogLine(
-                log_file_id=row.id,
-                line_number=parsed.line_number,
-                raw_text=parsed.raw_text,
-                timestamp=parsed.timestamp,
-                source=line_source,
-                level=parsed.level,
-                normalized_data=parsed.normalized or None,
-            )
+        line = LogLine(
+            log_file_id=row.id,
+            line_number=parsed.line_number,
+            raw_text=parsed.raw_text,
+            timestamp=parsed.timestamp,
+            source=line_source,
+            level=parsed.level,
+            normalized_data=parsed.normalized or None,
         )
+        batch.append(line)
+        stored.append(line)
         if len(batch) >= _LINE_BATCH:
             session.add_all(batch)
             session.commit()
@@ -347,3 +412,4 @@ def _store_lines(session: Session, row: LogFile, result, *, source_code: str) ->
     if batch:
         session.add_all(batch)
         session.commit()
+    return stored

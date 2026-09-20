@@ -68,19 +68,38 @@ log_files      ── log_files          (duplicate_of_id → first upload with 
 | Table | Rows |
 |---|---|
 | machine_models | P2600N (active), P2800N (active), P2600L (**placeholder, inactive**) |
-| log_sources | ecat, cim, keeper, jou, noteinfo, application, host, unknown |
-| parser_versions | generic_text @ 1.0.0 |
-| model_configurations | `processing` key per model (`transaction_analysis.enabled = false`, planned Phase 2) |
+| log_sources | ecat, cim, keeper, jou, noteinfo, application, host, unknown (+ model sources `app`, created on demand) |
+| parser_versions | generic_text @ 1.0.0 (+ configured model parsers, seeded from log_sources.yaml) |
+| model_configurations | `processing` key per model |
 | users | `system` service account |
+
+## Transaction analysis (Phase 2/3)
+
+```
+transactions        FK → log_files (source_file_id) / machines / machine_models
+                    transaction_id (raw), machine_id, model, start_time, end_time,
+                    amount, currency, status, correlation_confidence,
+                    correlation_method
+transaction_events  FK → transactions, log_files (evidence pointer)
+                    seq, event_code, stage, device, severity, timestamp,
+                    source_code, model_code, log_file_id, line_number,
+                    raw_text, detail (JSON)
+```
+
+* Rows are produced by the universal correlator + reconstructor from
+  normalized events — never per-model code.
+* Every `transaction_events` row keeps `(log_file_id, line_number,
+  raw_text)`, so each reconstructed step is traceable to original evidence.
+* Stages without confirming events are `NOT_CONFIRMED` markers
+  (`raw=None`) — they are never invented.
+* Migration: `e160ec93b2c1` (7 indexes on model/status/time/evidence FKs).
 
 ## Future phases
 
 The schema is designed so later phases **add** tables without altering the
-Phase 1 core:
+core:
 
 ```
-transactions        FK → log_files / machines / machine_models
-transaction_events  FK → transactions, log_lines (evidence pointer)
 cash_movements      FK → transactions, machine_components
 faults              FK → machines, machine_components, log_lines
 sensor_events       FK → machine_components, log_lines

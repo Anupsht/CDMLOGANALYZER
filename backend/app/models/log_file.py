@@ -33,13 +33,14 @@ from app.database.base import Base, BigIntegerPrimaryKeyMixin, TimestampMixin, U
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.machine import Machine, MachineModel
 
-# Processing lifecycle (section 12 of the Phase 1 spec).
+# Processing lifecycle (section 12 of the Phase 1 spec; CORRELATING added in Phase 3).
 PROCESSING_STATUSES = (
     "UPLOADED",
     "VALIDATING",
     "EXTRACTING",
     "IDENTIFYING",
     "PARSING",
+    "CORRELATING",
     "COMPLETED",
     "PARTIAL",
     "FAILED",

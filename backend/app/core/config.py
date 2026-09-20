@@ -54,6 +54,11 @@ class Settings(BaseSettings):
     max_extract_files: int = 500  # max files per ZIP
     allowed_upload_extensions: str = ".txt,.log,.csv,.json,.zip"
 
+    # ---- Model configuration ----
+    # Directory containing per-model YAML packages (config/models/<code>/).
+    # Empty = auto-discovered relative to the repository root.
+    config_dir: str = ""
+
     # ---- Derived helpers -------------------------------------------------
 
     @property

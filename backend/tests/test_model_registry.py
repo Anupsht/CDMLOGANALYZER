@@ -89,10 +89,33 @@ def test_adapters_registered_in_expected_order():
     assert codes.index("P2600N") < codes.index("P2800N") < codes.index("P2600L")
 
 
-def test_normalize_event_not_implemented():
+def test_normalize_event_maps_via_config():
+    """Phase 3: normalize_event is implemented (config-driven events.yaml).
+
+    A recognized P2600N message maps to a universal event; an unrecognized
+    one falls back to UNMAPPED (never invented).
+    """
+    from types import SimpleNamespace
+
     adapter = model_registry.get_model("P2600N")
-    with pytest.raises(NotImplementedError):
-        adapter.normalize_event({"any": "event"})
+    line = SimpleNamespace(
+        raw_text="2026-07-03 10:12:58.114 [eCAT] INFO  TRANSACTION_START TXN=26070310125801",
+        timestamp=None,
+        level="INFO",
+        normalized={"msg": "TRANSACTION_START TXN=26070310125801", "device": "eCAT", "fields": {}},
+    )
+    event = adapter.normalize_event(line, "ecat")
+    assert event.event == "TRANSACTION_STARTED"
+
+    unknown_line = SimpleNamespace(
+        raw_text="something entirely unrecognized happened",
+        timestamp=None,
+        level=None,
+        normalized={"msg": "something entirely unrecognized happened", "device": None, "fields": {}},
+    )
+    event2 = adapter.normalize_event(unknown_line, "ecat")
+    assert event2.event == "UNMAPPED"
+    assert event2.detail["pattern"] == "UNKNOWN"
 
 
 def test_detect_via_filename_hint(tmp_path):

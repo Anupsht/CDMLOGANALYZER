@@ -17,6 +17,7 @@ from app.models.log_file import LogFile, LogLine, LogSource
 from app.models.parser import ParserVersion
 from app.models.configuration import ModelConfiguration
 from app.models.audit import AuditLog
+from app.models.transaction import Transaction, TransactionEvent
 
 __all__ = [
     "User",
@@ -29,4 +30,6 @@ __all__ = [
     "ParserVersion",
     "ModelConfiguration",
     "AuditLog",
+    "Transaction",
+    "TransactionEvent",
 ]

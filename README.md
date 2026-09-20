@@ -74,6 +74,7 @@ Full details: [docs/setup.md](docs/setup.md).
 | [docs/database.md](docs/database.md) | Schema, tables, relationships, migration strategy |
 | [docs/parser-development.md](docs/parser-development.md) | How to write/registered parsers, source detection rules |
 | [docs/model-adapter-development.md](docs/model-adapter-development.md) | **How to add a new CDM model** (adapter + registry + seed) |
+| [docs/model-integrations.md](docs/model-integrations.md) | P2600N/P2800N integrations: SYNTHETIC assumptions & the YAML-only replacement path |
 | [docs/setup.md](docs/setup.md) | Environment variables, Docker, local dev, troubleshooting |
 
 ## Project structure
@@ -92,9 +93,9 @@ backend/               FastAPI application
     tasks/             queue abstraction: Celery (Redis) or inline
     analysis/ rules/   reserved for Phase 2+ (empty by design)
   alembic/             migrations
-  tests/               pytest suite (77 tests)
+  tests/               pytest suite (105 tests) + synthetic fixtures
 frontend/              React + TypeScript + Tailwind dashboard
-config/                configuration notes (env-driven via CDM_* variables)
+config/                per-model YAML packages (config/models/<code>/)
 docker/                Dockerfiles + nginx config
 docs/                  developer documentation
 ```
@@ -125,8 +126,9 @@ with the same `request_id`).
 ```bash
 cd backend
 source .venv/bin/activate
-pytest            # 77 tests: DB, upload, ZIP security, checksums, dedup,
-                  # parser selection, model registry, detection, API, pipeline
+pytest            # 105 tests: DB, upload, ZIP security, checksums, dedup,
+                  # parser selection, model registry, detection, API, pipeline,
+                  # correlator, P2600N + P2800N transactions, model comparison
 ```
 
 Tests are self-contained (temporary SQLite + eager queue) — no MySQL/Redis needed.
