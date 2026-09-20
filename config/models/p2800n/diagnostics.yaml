@@ -1,0 +1,20 @@
+# =============================================================================
+# P2800N diagnostic configuration (Phase 5) — model overlay.
+# =============================================================================
+# ⚠️ SYNTHETIC patterns — calibrate against real logs. Values below reuse the
+# Phase-3 APP token conventions (amt=…, denom=…). No note-count token is
+# assumed for P2800N: the COUNT_MISMATCH check therefore cannot fire until a
+# real pattern is configured (absence is intentional, not an omission).
+# =============================================================================
+
+reconciliation:
+  tolerance: 0.01
+  checks:
+    inserted_amount:
+      events: [CASH_ACCEPTED, CASH_ESCROWED, CASH_INSERTED]
+      pattern: 'amt[=:]([0-9]+(?:\.[0-9]+)?)'
+      type: float
+    counted_amount:
+      events: [CASH_COUNTING_COMPLETED]
+      pattern: 'amt[=:]([0-9]+(?:\.[0-9]+)?)'
+      type: float

@@ -1,0 +1,429 @@
+# =============================================================================
+# Universal diagnostic rules (Phase 5) — applies to EVERY model.
+# =============================================================================
+# The diagnostic engine (backend/app/analysis/diagnostics.py) is generic:
+# rules, requirements and reconciliation checks are DATA. A model package
+# may override/add rules via config/models/<code>/diagnostics.yaml
+# (same id → replaces, new id → appended).
+#
+# ⚠️ Thresholds/wording are SYNTHETIC templates — calibrate against real
+# evidence before production use. Findings are hedged interpretations of
+# evidence, never certainties; possible_causes are hypotheses, not root
+# causes (see docs/diagnostics.md).
+#
+# Condition operators (all data):
+#   event / any_event          universal event code(s)
+#   sequence (+window_seconds) ordered subsequence of events
+#   device                     events on a named device
+#   sensor_anomaly             mismatched/late sensor transition
+#   motor_timeout              motor exceeded its configured timeout
+#   gate_anomaly / shutter_anomaly
+#   transport_outcome          Phase 4 transport outcome(s)
+#   jam_classification         Phase 4 fault classification(s)
+#   cash_state                 cash lifecycle state(s) reached
+#   cash_final_state           terminal/last cash state
+#   transaction_status         universal transaction status
+#   host_state                 NO_REQUEST | NO_RESPONSE | APPROVED | DECLINED
+#   error_code_prefix / error_code_any
+#   reconciliation             reconciliation issue name(s)
+#   all / any / exclude        boolean combinators (nested)
+# =============================================================================
+
+rules:
+  # ---------------------------------------------------------------- jam
+  - id: CONFIRMED_CASH_JAM
+    category: TRANSPORT
+    diagnosis_class: HARDWARE_FAILURE
+    severity: CRITICAL
+    confidence_base: VERY_HIGH
+    summary: "Confirmed cash jam (multiple independent log sources)"
+    interpretation: >
+      The Phase 4 jam classifier confirmed a jam using multiple independent
+      evidence sources. The transport stopped under jam conditions; the
+      available logs do not identify a component-level root cause.
+    possible_causes:
+      - note obstruction in the transport path
+      - foreign object in the transport path
+      - transport mechanical problem
+    recommended_action: >
+      Open the transport path, remove obstructed notes, and run a self-test
+      before returning the machine to service.
+    all:
+      - jam_classification: [CONFIRMED_JAM]
+
+  - id: POSSIBLE_CASH_JAM
+    category: TRANSPORT
+    diagnosis_class: HARDWARE_FAILURE
+    severity: HIGH
+    confidence_base: MODERATE
+    summary: "Possible cash jam (single-source indication)"
+    interpretation: >
+      A hardware anomaly consistent with a transport obstruction was
+      observed, but the evidence is not sufficient to confirm a jam.
+    possible_causes:
+      - note obstruction
+      - sensor issue
+      - transport timing problem
+    recommended_action: >
+      Review the transport and sensor evidence; schedule an inspection if
+      the anomaly recurs.
+    all:
+      - jam_classification: [PROBABLE_JAM, POSSIBLE_JAM]
+
+  # ------------------------------------------------- transport obstruction
+  - id: TRANSPORT_OBSTRUCTION_SUSPECTED
+    category: TRANSPORT
+    diagnosis_class: HARDWARE_FAILURE
+    severity: HIGH
+    confidence_base: MODERATE
+    summary: "Possible transport obstruction"
+    interpretation: >
+      Cash was accepted and transport started, but the transport did not
+      complete within its configured window and an abnormal sensor state
+      was observed. This pattern is consistent with a physical obstruction
+      in the transport path.
+    possible_causes:
+      - note obstruction
+      - sensor issue
+      - transport timing problem
+    recommended_action: >
+      Inspect the transport path for obstructions and review the sensor
+      evidence before restarting the machine.
+    all:
+      - event: CASH_ACCEPTED
+      - sequence:
+          - event: TRANSPORT_STARTED
+          - event: TRANSPORT_TIMEOUT
+        window_seconds: 120
+      - transport_outcome: [TIMEOUT]
+      - sensor_anomaly: true
+
+  # ------------------------------------------------------- cash exceptions
+  - id: CASH_ACCEPTED_NOT_RETURNED
+    category: CASH_HANDLING
+    diagnosis_class: CASH_EXCEPTION
+    severity: HIGH
+    confidence_base: MODERATE
+    summary: "Cash accepted during a failed transaction but never returned"
+    interpretation: >
+      Cash reached the accepted/escrow path during a declined or failed
+      transaction, but no return or rejection of the cash was observed and
+      its final location is unknown.
+    possible_causes:
+      - cash retained in escrow after failure
+      - return transport interrupted
+      - incomplete logging of the cash-out path
+    recommended_action: >
+      Reconcile the cash drawer against this transaction and inspect the
+      escrow/return path.
+    all:
+      - cash_state: [ACCEPTED, ESCROW, COUNTED, VALIDATED, CONFIRMED, TRANSPORTING]
+      - any:
+          - host_state: [DECLINED]
+          - transaction_status: [FAILED]
+      - cash_final_state: [UNKNOWN_LOCATION]
+    exclude:
+      - event: [CASH_RETURNED, CASH_REJECTED]
+
+  - id: CASH_ACCEPTED_NOT_STORED
+    category: CASH_HANDLING
+    diagnosis_class: CASH_EXCEPTION
+    severity: HIGH
+    confidence_base: MODERATE
+    summary: "Cash accepted but never confirmed stored or returned"
+    interpretation: >
+      Cash entered the machine and reached the accepted path, but the logs
+      contain no evidence of it being stored, returned or rejected — its
+      final location is unknown.
+    possible_causes:
+      - transport interrupted before storage
+      - storage path not logged
+      - cash held in a intermediate state at log end
+    recommended_action: >
+      Physically verify cash position (escrow, transporter, cassette) and
+      reconcile with this transaction.
+    all:
+      - cash_state: [ACCEPTED, ESCROW, COUNTED, VALIDATED, CONFIRMED, TRANSPORTING]
+      - cash_final_state: [UNKNOWN_LOCATION]
+
+  - id: CASH_AMOUNT_MISMATCH
+    category: CASH_HANDLING
+    diagnosis_class: CASH_EXCEPTION
+    severity: HIGH
+    confidence_base: MODERATE
+    summary: "Amount mismatch between cash insertion and counting"
+    interpretation: >
+      The amount recorded at cash insertion differs from the amount
+      reported by the counting stage. This is a cash-handling discrepancy,
+      not by itself evidence of a hardware fault.
+    possible_causes:
+      - miscount during counting
+      - note feeder double-feed
+      - logging discrepancy
+    recommended_action: >
+      Compare physical contents with the journal amounts; review counting
+      sensor behaviour.
+    all:
+      - reconciliation: [AMOUNT_MISMATCH]
+
+  - id: CASH_COUNT_MISMATCH
+    category: CASH_HANDLING
+    diagnosis_class: CASH_EXCEPTION
+    severity: HIGH
+    confidence_base: MODERATE
+    summary: "Note count mismatch between insertion and counting"
+    interpretation: >
+      The note count recorded at insertion differs from the note count at
+      the counting stage.
+    possible_causes:
+      - double-feed / misfeed at insertion
+      - counting sensor issue
+      - logging discrepancy
+    recommended_action: >
+      Check the note feeder and counting module; reconcile physical notes.
+    all:
+      - reconciliation: [COUNT_MISMATCH]
+
+  - id: HOST_CASH_OUTCOME_MISMATCH
+    category: CASH_HANDLING
+    diagnosis_class: CASH_EXCEPTION
+    severity: HIGH
+    confidence_base: MODERATE
+    summary: "Host decision and cash outcome disagree"
+    interpretation: >
+      The host decision and the physical cash outcome are inconsistent
+      (e.g. the host declined but the cash was stored, or the host approved
+      but the cash was returned). This is an application/cash-handling
+      inconsistency, not evidence of a transport fault.
+    possible_causes:
+      - application state-machine defect
+      - cash path executed without host confirmation
+      - out-of-order or missing log records
+    recommended_action: >
+      Escalate to the application/vendor support with this transaction's
+      evidence bundle.
+    any:
+      - all:
+          - host_state: [DECLINED]
+          - cash_final_state: [STORED]
+      - all:
+          - host_state: [APPROVED]
+          - cash_final_state: [RETURNED, REJECTED]
+
+  # ------------------------------------------------ transaction mismatches
+  - id: TRANSACTION_OUTCOME_MISMATCH
+    category: SOFTWARE
+    diagnosis_class: APPLICATION_FAILURE
+    severity: HIGH
+    confidence_base: MODERATE
+    summary: "Transaction outcome does not match the final cash state"
+    interpretation: >
+      The universal transaction status and the reconstructed final cash
+      state disagree (e.g. the transaction reported completion while the
+      cash never reached a terminal state). This indicates an
+      application-level inconsistency.
+    possible_causes:
+      - application reported success prematurely
+      - missing end-of-transaction log records
+      - cash path failure not surfaced to the application
+    recommended_action: >
+      Investigate the application's transaction handling; verify the
+      physical cash position independently.
+    any:
+      - all:
+          - transaction_status: [COMPLETED]
+          - cash_final_state: [UNKNOWN_LOCATION, JAMMED]
+      - all:
+          - transaction_status: [FAILED, DECLINED]
+          - cash_final_state: [STORED]
+
+  # --------------------------------------------------------- host / comms
+  - id: HOST_TRANSACTION_FAILURE
+    category: HOST
+    diagnosis_class: HOST_FAILURE
+    severity: HIGH
+    confidence_base: MODERATE
+    summary: "Host declined the transaction after cash acceptance"
+    interpretation: >
+      Cash was accepted and counted, the host declined, and the cash was
+      returned to the customer. The machine and its transport behaved
+      normally: this is a host-side transaction failure, not a hardware
+      failure.
+    possible_causes:
+      - host risk or limit decision
+      - card/account status
+      - host application logic
+    recommended_action: >
+      No hardware action required. Follow up with the host/operator for the
+      decline reason.
+    all:
+      - event: HOST_DECLINED
+      - cash_state: [ACCEPTED, ESCROW, COUNTED, VALIDATED, CONFIRMED]
+      - cash_final_state: [RETURNED]
+    exclude:
+      - sensor_anomaly: true
+      - motor_timeout: true
+      - gate_anomaly: true
+      - shutter_anomaly: true
+      - transport_outcome: [TIMEOUT, MISSING_SENSOR_TRANSITION, UNEXPECTED_STATE]
+      - jam_classification: [CONFIRMED_JAM, PROBABLE_JAM, POSSIBLE_JAM]
+
+  - id: HOST_NO_RESPONSE
+    category: COMMUNICATION
+    diagnosis_class: COMMUNICATION_FAILURE
+    severity: HIGH
+    confidence_base: MODERATE
+    summary: "Host request sent but no response observed"
+    interpretation: >
+      A host request was sent but neither a response nor a decline was
+      observed within the analyzed events. This indicates a communication
+      problem rather than a host decision or hardware fault.
+    possible_causes:
+      - network connectivity problem
+      - host service unavailable
+      - communication timeout
+    recommended_action: >
+      Check network connectivity and host service status; review the
+      communication logs of adjacent transactions.
+    all:
+      - event: HOST_REQUEST
+    exclude:
+      - event: [HOST_RESPONSE, HOST_DECLINED]
+
+  # ------------------------------------------------------ single anomalies
+  - id: SENSOR_ANOMALY
+    category: SENSOR
+    diagnosis_class: HARDWARE_FAILURE
+    severity: MEDIUM
+    confidence_base: LOW
+    summary: "Sensor state anomaly observed"
+    interpretation: >
+      A sensor transition did not match its expected state or arrived
+      abnormally late. On its own this is not evidence of a jam, but it
+      warrants review.
+    possible_causes:
+      - sensor drift or failure
+      - intermittent obstruction at the sensor
+      - timing/tolerance configuration issue
+    recommended_action: >
+      Review the sensor readings across recent transactions; clean or
+      recalibrate if the anomaly recurs.
+    all:
+      - sensor_anomaly: true
+
+  - id: MOTOR_TIMEOUT
+    category: MOTOR
+    diagnosis_class: HARDWARE_FAILURE
+    severity: MEDIUM
+    confidence_base: LOW
+    summary: "Motor run exceeded its configured timeout"
+    interpretation: >
+      A motor run exceeded its configured timeout or no stop was observed.
+      The logs cannot establish whether the cause is mechanical, an
+      obstruction, or a control problem.
+    possible_causes:
+      - transport obstruction increasing load
+      - motor or drive problem
+      - control/timing configuration issue
+    recommended_action: >
+      Correlate with transport and sensor evidence; inspect the mechanical
+      path before replacing components.
+    all:
+      - motor_timeout: true
+
+  - id: GATE_ANOMALY
+    category: GATE
+    diagnosis_class: HARDWARE_FAILURE
+    severity: MEDIUM
+    confidence_base: LOW
+    summary: "Gate position anomaly observed"
+    interpretation: >
+      A gate did not reach its commanded position within the configured
+      transition window, or a mismatching position was observed.
+    possible_causes:
+      - gate mechanical obstruction
+      - gate position sensor issue
+      - actuator timing problem
+    recommended_action: >
+      Inspect the gate mechanism and its position sensor.
+    all:
+      - gate_anomaly: true
+
+  - id: SHUTTER_ANOMALY
+    category: SHUTTER
+    diagnosis_class: HARDWARE_FAILURE
+    severity: MEDIUM
+    confidence_base: LOW
+    summary: "Shutter position anomaly observed"
+    interpretation: >
+      A shutter did not reach its commanded position within the configured
+      transition window, or its position was never observed.
+    possible_causes:
+      - shutter mechanical obstruction
+      - shutter position sensor issue
+      - actuator timing problem
+    recommended_action: >
+      Inspect the shutter mechanism and its position sensor.
+    all:
+      - shutter_anomaly: true
+
+  # --------------------------------------------------------- normal finish
+  - id: NORMAL_COMPLETION
+    diagnosis_class: NO_FAILURE
+    severity: INFO
+    confidence_base: HIGH
+    summary: "Transaction completed normally; cash reached a terminal state"
+    interpretation: >
+      The transaction completed and the cash reached a terminal state with
+      no hardware anomaly observed. No diagnostic action is required.
+    possible_causes: []
+    recommended_action: "None."
+    all:
+      - transaction_status: [COMPLETED]
+      - cash_final_state: [STORED, RETURNED, REJECTED]
+    exclude:
+      - sensor_anomaly: true
+      - motor_timeout: true
+      - gate_anomaly: true
+      - shutter_anomaly: true
+      - transport_outcome: [TIMEOUT, MISSING_SENSOR_TRANSITION, UNEXPECTED_STATE]
+      - jam_classification: [CONFIRMED_JAM, PROBABLE_JAM, POSSIBLE_JAM]
+      - cash_final_state: [UNKNOWN_LOCATION]
+
+# ---------------------------------------------------------------------------
+# Configurable technical requirements (section 9).
+# A violation is flagged ONLY when a requirement is configured here (or in
+# the model's diagnostics.yaml). Removing/disabling an entry removes the
+# check — the engine never invents requirements.
+# ---------------------------------------------------------------------------
+requirements:
+  - id: JAM_REQUIRES_MANUAL_OFFLINE
+    description: >
+      After a confirmed (or probable) cash jam, the machine must remain
+      offline until manual intervention.
+    violation_summary: >
+      The machine resumed transaction activity after a jam without a
+      recorded manual intervention.
+    category: TRANSPORT
+    severity: HIGH
+    trigger:
+      jam_classification: [CONFIRMED_JAM, PROBABLE_JAM]
+    violation:
+      # Activity of a SUBSEQUENT transaction (or an explicit in-transaction
+      # recovery signal) after the jam anchor counts as automatic recovery.
+      any_event: [TRANSACTION_STARTED, CASH_ACCEPTED, TRANSPORT_STARTED, JAM_CLEARED]
+      within_seconds: 600
+
+# ---------------------------------------------------------------------------
+# Reconciliation (section 8). Amount/count extraction patterns are
+# model-specific → per-model diagnostics.yaml; the comparison pairs below
+# are universal. Checks only fire where BOTH sides are present in the logs
+# (missing values are never invented).
+# ---------------------------------------------------------------------------
+reconciliation:
+  tolerance: 0.01
+  pairs:
+    - compare: [inserted_amount, counted_amount]
+      issue: AMOUNT_MISMATCH
+    - compare: [inserted_notes, counted_notes]
+      issue: COUNT_MISMATCH

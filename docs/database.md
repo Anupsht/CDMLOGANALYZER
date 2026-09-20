@@ -119,6 +119,22 @@ Migration: `c7d21e5a8f40`. Every row that derives from a log line keeps
 `(log_file_id, line_number, raw_text)` — diagnoses never exist without
 inspectable evidence.
 
+## Diagnostics (Phase 5)
+
+```
+diagnostic_findings FK → transactions; finding_id, rule_id, diagnosis_class
+                    (HOST_FAILURE | HARDWARE_FAILURE | COMMUNICATION_FAILURE |
+                    APPLICATION_FAILURE | CASH_EXCEPTION | REQUIREMENT_VIOLATION |
+                    NO_FAILURE | INSUFFICIENT_DATA), category, severity,
+                    confidence (LOW..VERY_HIGH), summary, interpretation,
+                    possible_causes (JSON), recommended_action,
+                    evidence (JSON raw-line refs), cash_states (JSON)
+```
+
+Migration: `a9c4e7d1f6b2`. Produced by the data-driven rules in
+`config/diagnostics/rules.yaml` (+ per-model `diagnostics.yaml`) — the
+engine contains no model-specific logic.
+
 ## Future phases
 
 The schema is designed so later phases **add** tables without altering the

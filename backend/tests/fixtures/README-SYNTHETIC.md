@@ -31,3 +31,9 @@ Fixture scenarios covered (both models):
 The `_hw` directories exercise the universal hardware analyzer
 (`app/analysis/hardware.py`) through each model's SYNTHETIC
 `hardware.yaml` — see docs/hardware-analysis.md.
+
+Phase 5 note: the diagnostic rules in `config/diagnostics/rules.yaml` and
+the reconciliation patterns in `config/models/*/diagnostics.yaml` are
+SYNTHETIC templates calibrated on these fixtures — thresholds and wording
+must be re-validated against real evidence (YAML-only change; the engine
+is generic).

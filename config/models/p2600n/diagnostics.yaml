@@ -1,0 +1,28 @@
+# =============================================================================
+# P2600N diagnostic configuration (Phase 5) — model overlay.
+# =============================================================================
+# ⚠️ SYNTHETIC patterns — calibrate against real logs. Values below reuse the
+# Phase-2 eCAT/CIM token conventions (AMOUNT=…, NOTES=…). Checks fire only
+# when BOTH sides of a comparison are present; missing values are never
+# invented.
+# =============================================================================
+
+reconciliation:
+  tolerance: 0.01
+  checks:
+    inserted_amount:
+      events: [CASH_INSERTED, CASH_ACCEPTED, CASH_ESCROWED]
+      pattern: 'AMOUNT[=:]([0-9]+(?:\.[0-9]+)?)'
+      type: float
+    counted_amount:
+      events: [CASH_COUNTING_COMPLETED]
+      pattern: 'AMOUNT[=:]([0-9]+(?:\.[0-9]+)?)'
+      type: float
+    inserted_notes:
+      events: [CASH_INSERTED]
+      pattern: 'NOTES[=:]([0-9]+)'
+      type: int
+    counted_notes:
+      events: [CASH_COUNTING_COMPLETED]
+      pattern: 'NOTES[=:]([0-9]+)'
+      type: int

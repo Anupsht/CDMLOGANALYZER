@@ -64,6 +64,16 @@ class TransactionService:
                         "Hardware analysis failed (transaction kept)",
                         extra={"operation": "hardware.analyze", "transaction_id": txn.transaction_id},
                     )
+                # Phase 5: evidence-driven diagnostic findings.
+                try:
+                    from app.services.diagnostic_service import diagnostic_service
+
+                    diagnostic_service.analyze_transaction(session, txn)
+                except Exception:
+                    logger.exception(
+                        "Diagnostic analysis failed (transaction kept)",
+                        extra={"operation": "diagnostics.analyze", "transaction_id": txn.transaction_id},
+                    )
             logger.info(
                 "Correlation complete for model",
                 extra={

@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_db
 from app.schemas.common import ListResponse
+from app.schemas.diagnostics import DiagnosticReportOut
 from app.schemas.hardware import HardwareTimelineOut
 from app.schemas.transaction import (
     TimelineOut,
@@ -81,3 +82,22 @@ def get_transaction_hardware(txn_id: str, session: Session = Depends(get_db)) ->
     txn = transaction_service.get(session, txn_id)
     payload = hardware_service.hardware_payload(session, txn)
     return HardwareTimelineOut.model_validate(payload, from_attributes=True)
+
+
+@router.get("/{txn_id}/diagnostics", response_model=DiagnosticReportOut)
+def get_transaction_diagnostics(txn_id: str, session: Session = Depends(get_db)) -> DiagnosticReportOut:
+    """Evidence-driven diagnostic report (Phase 5).
+
+    Evaluates the data-driven diagnostic rules (universal
+    ``config/diagnostics/rules.yaml`` + per-model ``diagnostics.yaml``)
+    against this transaction's Phase 2–4 evidence picture. Every finding
+    references the actual events/raw lines/cash states; confidence levels
+    (LOW..VERY_HIGH) express evidence strength, never certainty, and
+    possible_causes are hypotheses — not component-level root causes.
+    """
+    txn = transaction_service.get(session, txn_id)
+    from app.services.diagnostic_service import diagnostic_service
+
+    return DiagnosticReportOut.model_validate(
+        diagnostic_service.report(session, txn), from_attributes=True
+    )

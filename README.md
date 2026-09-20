@@ -76,6 +76,7 @@ Full details: [docs/setup.md](docs/setup.md).
 | [docs/model-adapter-development.md](docs/model-adapter-development.md) | **How to add a new CDM model** (adapter + registry + seed) |
 | [docs/model-integrations.md](docs/model-integrations.md) | P2600N/P2800N integrations: SYNTHETIC assumptions & the YAML-only replacement path |
 | [docs/hardware-analysis.md](docs/hardware-analysis.md) | Phase 4 cash lifecycle, hardware correlation & jam classification |
+| [docs/diagnostics.md](docs/diagnostics.md) | Phase 5 diagnostic rules, root-cause categories, findings & evidence engine |
 | [docs/setup.md](docs/setup.md) | Environment variables, Docker, local dev, troubleshooting |
 
 ## Project structure
@@ -94,7 +95,7 @@ backend/               FastAPI application
     tasks/             queue abstraction: Celery (Redis) or inline
     analysis/ rules/   reserved for Phase 2+ (empty by design)
   alembic/             migrations
-  tests/               pytest suite (134 tests) + synthetic fixtures
+  tests/               pytest suite (158 tests) + synthetic fixtures
 frontend/              React + TypeScript + Tailwind dashboard
 config/                per-model YAML packages (config/models/<code>/)
 docker/                Dockerfiles + nginx config
@@ -115,6 +116,14 @@ POST /api/models/{code}/enable|disable
 GET  /api/machines             fleet list
 POST /api/machines             register machine
 GET  /api/machines/{id}        machine detail
+GET  /api/transactions/{id}/diagnostics
+                                Phase 5 evidence-driven diagnostic report:
+                                findings (category, severity, confidence
+                                LOW..VERY_HIGH, summary, interpretation,
+                                possible causes, recommended action) from
+                                data-driven rules; every finding cites raw
+                                log evidence; host vs hardware vs
+                                communication vs application classification
 GET  /api/health               health + queue/database status
 ```
 
@@ -130,7 +139,8 @@ source .venv/bin/activate
 pytest            # 134 tests: DB, upload, ZIP security, checksums, dedup,
                   # parser selection, model registry, detection, API, pipeline,
                   # correlator, P2600N + P2800N transactions, model comparison,
-                  # cash lifecycle, hardware correlation, jam classification
+                  # cash lifecycle, hardware correlation, jam classification,
+                  # diagnostic rules/findings golden cases (Phase 5)
 ```
 
 Tests are self-contained (temporary SQLite + eager queue) — no MySQL/Redis needed.
