@@ -35,6 +35,8 @@ class LogFileOut(BaseModel):
     machine_model_id: str | None = None
     machine_model_code: str | None = None
     log_source: SourceDetectionOut | None = None
+    # Phase 6: ranked model-detection candidates + per-signal evidence.
+    detection_evidence: dict | None = None
     parser_code: str | None = None
     parser_version: str | None = None
     line_count: int | None = None

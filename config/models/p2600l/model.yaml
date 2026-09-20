@@ -1,0 +1,45 @@
+# =============================================================================
+# P2600L model configuration — identity, correlation rules, key extraction
+# =============================================================================
+# ⚠️ NO REAL P2600L LOGS OR DOCUMENTATION WERE RECEIVED. The project owner
+# did not deliver P2600L material, so EVERY pattern below is a labeled
+# SYNTHETIC template — and deliberately NOT derived from P2600N (distinct
+# sources, formats and tokens: apl/jal/dgn, `tx=`, `#seq|`, `hw `).
+# Replacing them with real P2600L behavior is a YAML-only change; the
+# universal engine never branches on model codes. Do not use P2600L
+# findings operationally until real logs validate this package.
+# =============================================================================
+
+code: P2600L
+display_name: GRG P2600L
+vendor: GRG Banking
+
+# Phase 6: model detection corroboration (see adapters/base.py detect).
+detection:
+  software_identifiers:
+    - 'P2600L FW'
+    - 'P2600L core'
+
+# Correlation: journal transaction token (jal column 3) is primary.
+correlation:
+  primary_key: txn_id
+  auto_id_prefix: P2600L-AUTO
+  rules:
+    - name: txn_id_exact        # raw token: tx= / jal column 3
+      key: txn_id
+      weight: 1.0
+    - name: journal_sequence    # raw token: #seq|
+      key: journal_seq
+      weight: 0.5
+      window_seconds: 600
+    - name: session_window      # raw token: sn=
+      key: session_id
+      weight: 0.6
+      window_seconds: 300
+
+key_extract:
+  - key: host_ref
+    pattern: 'hst[=:]([A-Za-z0-9_-]+)'
+  - key: journal_seq
+    pattern: '^#(\d+)\|'
+    type: int

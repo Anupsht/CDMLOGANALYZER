@@ -1,0 +1,20 @@
+# =============================================================================
+# P2600L error-code patterns (⚠️ SYNTHETIC — see model.yaml)
+# =============================================================================
+
+apl:
+  - pattern: '\[ERR\].*?code[=:]([A-Za-z0-9_-]+)'
+    code: P26L-APL-$1
+    severity: ERROR
+    description: P2600L application error (code captured from line).
+
+dgn:
+  - pattern: '\bE-([0-9]{3,4})\b'
+    code: P26L-HW-$1
+    severity: WARNING
+    description: P2600L hardware diagnostic code (interpretation pending vendor table).
+
+default:
+  - pattern: '\bFATAL\b'
+    code: UNK-P26L-FATAL
+    severity: CRITICAL

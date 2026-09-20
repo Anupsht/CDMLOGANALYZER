@@ -73,15 +73,19 @@ def test_enable_disable_updates_db(db_session):
     assert db_session.query(MachineModel).filter_by(code="P2800N").one().is_active is True
 
 
-def test_p2600l_is_disabled_placeholder(db_session):
+def test_p2600l_is_active_third_model(db_session):
+    """Phase 6: P2600L is a full config-driven model (patterns are labeled
+    SYNTHETIC until real documentation arrives)."""
     from app.models.machine import MachineModel
 
     row = db_session.query(MachineModel).filter_by(code="P2600L").one()
-    assert row.is_placeholder is True
-    assert row.is_active is False
+    assert row.is_placeholder is False
+    assert row.is_active is True
     adapter = model_registry.get_model("P2600L")
-    assert adapter.is_placeholder is True
-    assert adapter.detect(None.__class__) is None or True  # detect exists, returns None
+    assert adapter.is_placeholder is False
+    # its own sources — never inferred from P2600N
+    assert sorted(adapter.get_log_sources()) == ["apl", "dgn", "jal"]
+    assert "p2600l" not in ("ecat cim keeper jou noteinfo application host unknown app jrn siu ifm")
 
 
 def test_adapters_registered_in_expected_order():

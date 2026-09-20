@@ -47,6 +47,57 @@ class ModelRegistry:
             extra={"operation": "registry.register", "model_code": code, "adapter": adapter_cls.__name__},
         )
 
+    # Phase 6 plugin-style aliases (same registry, framework vocabulary).
+    register_adapter = register_model
+
+    def get_adapter(self, code: str) -> "BaseModelAdapter | None":
+        """Alias of :meth:`get_model` (plugin vocabulary)."""
+        return self.get_model(code)
+
+    def list_adapters(self) -> list[dict]:
+        """Alias of :meth:`list_models` (plugin vocabulary)."""
+        return self.list_models()
+
+    def detect_adapters(self, ctx) -> list[dict]:
+        """Ask every enabled adapter to detect the model of ``ctx``.
+
+        Returns ALL positive candidates ranked by confidence (desc):
+        ``[{"model_code", "confidence", "method", "matched_on",
+        "evidence": [...]}]``. Pure function of the file context — no
+        database access, no side effects.
+        """
+        from app.adapters.base import ModelDetection  # noqa: F401  (type only)
+
+        candidates: list[dict] = []
+        for adapter in sorted(self, key=lambda a: a.sort_order):
+            if not self.is_enabled(adapter.code):
+                continue
+            try:
+                detection = adapter.detect(ctx)
+            except Exception:
+                logger.exception(
+                    "Adapter detect() failed", extra={"adapter": type(adapter).__name__}
+                )
+                continue
+            if detection is None:
+                continue
+            candidates.append(
+                {
+                    "model_code": detection.model_code,
+                    "confidence": detection.confidence,
+                    "method": detection.method,
+                    "matched_on": detection.matched_on,
+                    "evidence": list(detection.evidence or []),
+                }
+            )
+        candidates.sort(key=lambda c: (-c["confidence"], c["model_code"]))
+        return candidates
+
+    def detect_adapter(self, ctx) -> dict | None:
+        """Best-scoring detection for ``ctx`` (or None)."""
+        candidates = self.detect_adapters(ctx)
+        return candidates[0] if candidates else None
+
     # ---- lookup ---------------------------------------------------------
 
     def get_model(self, code: str) -> "BaseModelAdapter | None":

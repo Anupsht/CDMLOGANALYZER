@@ -1,0 +1,53 @@
+# =============================================================================
+# P2600L hardware / cash-flow extraction (Phase 4 config, P2600L tokens)
+# =============================================================================
+# ⚠️ SYNTHETIC — see model.yaml. No real P2600L documentation received.
+# =============================================================================
+
+sensors:
+  # "hw SN3 0->1"
+  - pattern: 'SN(?P<name>[0-9]+) (?P<previous>\w+)->(?P<new>\w+)'
+
+motors:
+  - name: motor
+    start_pattern: 'MOT(?P<name>[0-9]+) start'
+    stop_pattern: 'MOT(?P<name>[0-9]+) stop'
+    timeout_ms: 8000
+
+gates:
+  command_pattern: 'GATE(?P<name>[0-9]*) cmd (?P<command>[a-z]+)'
+  position_pattern: 'GATE(?P<name>[0-9]*) pos (?P<state>[a-z]+)'
+  transition_timeout_ms: 5000
+  expected_state_map:
+    OPEN: OPEN
+    CLOSE: CLOSED
+
+# No P2600L shutter source is assumed — absence is intentional.
+
+transport:
+  motor_names: ['1']
+  timeout_ms: 10000
+  sensors:
+    - sensor: '3'
+      expected: '1'
+      blocked: ['0']
+
+temporal_analysis:
+  before_seconds: 30
+  after_seconds: 60
+
+# A single dgn error code is never a confirmed jam by itself.
+jam_indications:
+  patterns:
+    - '(?<!clear )jam(?! clear)'
+  events: [JAM_DETECTED]
+
+cash:
+  notes:
+    - key: denomination
+      pattern: 'denom[=:]([0-9]+)'
+      type: int
+    - key: serial
+      pattern: 'serial[=:]([A-Za-z0-9]+)'
+      type: str
+  lifecycle_overrides: {}

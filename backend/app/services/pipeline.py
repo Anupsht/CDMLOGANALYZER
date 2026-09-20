@@ -276,10 +276,14 @@ def _identify_and_parse(
     # Runs first so the model adapter can refine source detection below.
     adapter = None
     if row.machine_model_id is None:
-        candidates = [
-            candidate for candidate in model_registry if model_registry.is_enabled(candidate.code)
-        ]
-        model_code, confidence, method = detection_service.detect_model(ctx, candidates)
+        # Phase 6: ranked candidates with evidence (filename, content
+        # signatures, device names, software identifiers).
+        candidates = model_registry.detect_adapters(ctx)
+        row.detection_evidence = {"candidates": candidates} or None
+        best = candidates[0] if candidates else None
+        model_code = best["model_code"] if best else None
+        confidence = best["confidence"] if best else 0.0
+        method = best["method"] if best else "none"
         if model_code:
             from app.models.machine import MachineModel
 

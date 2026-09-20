@@ -25,7 +25,7 @@ from __future__ import annotations
 import logging
 import re
 from abc import ABC
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, ClassVar
 
 from app.core.model_config import load_model_config
@@ -42,6 +42,10 @@ class ModelDetection:
     confidence: float  # 0.0 .. 1.0
     method: str  # filename | content | metadata | …
     matched_on: str  # what matched (pattern, signature, …)
+    # Phase 6: ranked evidence list backing the decision — entries:
+    # {"source": filename|content_signature|device_name|software_identifier,
+    #  "matched_on": pattern/token, "context": sample text}
+    evidence: list[dict[str, Any]] = field(default_factory=list)
 
 
 class BaseModelAdapter(ABC):
@@ -106,15 +110,81 @@ class BaseModelAdapter(ABC):
     # Detection
     # ------------------------------------------------------------------
     def detect(self, ctx: FileContext) -> ModelDetection | None:
-        """Whole-model detection: filename / ZIP path, then content."""
+        """Whole-model detection (generic, evidence-ranked).
+
+        Signals, all configuration-driven — no model code here:
+        * filename / ZIP inner path patterns  (base confidence 0.6)
+        * content signatures                  (base confidence 0.5)
+        * device-name patterns (devices.yaml) (each +0.05)
+        * software identifiers (model.yaml → detection.software_identifiers,
+          e.g. firmware/app strings)           (each +0.1)
+
+        Every contributing signal is returned as evidence on the
+        detection; confidences are capped at 0.95 (never certainty).
+        """
         haystack = " ".join([ctx.filename, str(ctx.hints.get("original_path", ""))])
+        head = ctx.head_text[:8192]
+        evidence: list[dict[str, Any]] = []
+        confidence = 0.0
+        method, matched_on = "none", "no signal"
+
         for pattern in self._filename_patterns:
             if re.search(pattern, haystack, re.IGNORECASE):
-                return ModelDetection(self.code, 0.6, "filename", pattern)
+                confidence = max(confidence, 0.6)
+                method, matched_on = "filename", pattern
+                evidence.append(
+                    {
+                        "source": "filename",
+                        "matched_on": pattern,
+                        "context": haystack[:160],
+                    }
+                )
+                break
         for pattern in self._content_patterns:
-            if re.search(pattern, ctx.head_text[:8192]):
-                return ModelDetection(self.code, 0.5, "content", pattern)
-        return None
+            if re.search(pattern, head):
+                if confidence < 0.5:
+                    method, matched_on = "content", pattern
+                confidence = max(confidence, 0.5)
+                evidence.append(
+                    {
+                        "source": "content_signature",
+                        "matched_on": pattern,
+                        "context": head[:160],
+                    }
+                )
+                break
+
+        detection_cfg = (self.model_config.get("model") or {}).get("detection") or {}
+        for ident in detection_cfg.get("software_identifiers") or []:
+            m = re.search(ident, head, re.IGNORECASE)
+            if m:
+                confidence = min(0.95, confidence + 0.1)
+                evidence.append(
+                    {
+                        "source": "software_identifier",
+                        "matched_on": ident,
+                        "context": head[max(0, (m.start() or 0) - 40) : (m.start() or 0) + 120][:160],
+                    }
+                )
+        for rule in (self.model_config.get("devices") or {}).get("patterns") or []:
+            pattern = (rule or {}).get("pattern")
+            if not pattern:
+                continue
+            m = re.search(pattern, head, re.IGNORECASE)
+            if m:
+                confidence = min(0.95, confidence + 0.05)
+                evidence.append(
+                    {
+                        "source": "device_name",
+                        "matched_on": pattern,
+                        "context": head[max(0, (m.start() or 0) - 40) : (m.start() or 0) + 120][:160],
+                    }
+                )
+                break  # one device-name hit is enough corroboration
+
+        if confidence <= 0.0:
+            return None
+        return ModelDetection(self.code, round(confidence, 3), method, matched_on, evidence)
 
     def detect_source(self, ctx: FileContext) -> ModelDetection | None:
         """Source-level detection using this model's filename patterns.

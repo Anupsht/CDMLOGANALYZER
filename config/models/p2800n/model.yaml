@@ -8,6 +8,11 @@
 # differences never leak into the universal engine.
 # =============================================================================
 
+# Phase 6: model detection corroboration (see adapters/base.py detect).
+detection:
+  software_identifiers:
+    - 'P2800N APP'
+
 code: P2800N
 display_name: GRG P2800N
 vendor: GRG Banking

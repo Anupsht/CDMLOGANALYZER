@@ -21,6 +21,96 @@ def list_models(session: Session = Depends(get_db)) -> list[MachineModelOut]:
     return [MachineModelOut(**entry) for entry in entries]
 
 
+@router.get("/{model_code}/config")
+def get_model_config(model_code: str) -> dict:
+    """Effective model configuration package (Phase 6, read-only).
+
+    Proves the generic configuration mechanism: every model is defined by
+    its YAML package (identity, log sources, parsers, devices, hardware,
+    error codes, event mappings, diagnostics) — the core engine reads this
+    data and contains no model-specific logic.
+    """
+    adapter = model_registry.get_adapter(model_code)
+    if adapter is None:
+        from app.core.errors import NotFoundError
+
+        raise NotFoundError(f"Machine model not found: {model_code}")
+
+    cfg = adapter.model_config
+    model_cfg = cfg.get("model") or {}
+    log_sources = cfg.get("log_sources") or {}
+    events = cfg.get("events") or {}
+    errors = cfg.get("errors") or {}
+    hardware = cfg.get("hardware") or {}
+    devices = (cfg.get("devices") or {}).get("patterns") or []
+    diagnostics = cfg.get("diagnostics") or {}
+    # Universal diagnostic rules (config/diagnostics/rules.yaml) apply to
+    # every model; the model package only overlays/adds.
+    from app.analysis.diagnostics import DiagnosticConfig
+
+    universal_cfg = DiagnosticConfig.load(None)
+    model_rule_ids = {r.get("id") for r in (diagnostics.get("rules") or []) if r.get("id")}
+    has_package = bool(cfg)
+
+    return {
+        "model_code": adapter.code,
+        "display_name": adapter.display_name,
+        "enabled": model_registry.is_enabled(adapter.code),
+        "placeholder": adapter.is_placeholder,
+        "config_package_present": has_package,
+        "identity": {
+            "code": model_cfg.get("code", adapter.code),
+            "display_name": model_cfg.get("display_name", adapter.display_name),
+            "vendor": model_cfg.get("vendor", adapter.vendor),
+        },
+        "detection": {
+            "filename_patterns": list(adapter._filename_patterns),
+            "content_signatures": list(adapter._content_patterns),
+            "software_identifiers": (model_cfg.get("detection") or {}).get(
+                "software_identifiers", []
+            ),
+        },
+        "log_sources": [
+            {
+                "source": source,
+                "name": (spec or {}).get("name"),
+                "parser": ((spec or {}).get("parser") or {}).get("code"),
+                "filename_patterns": (spec or {}).get("filename_patterns", []),
+            }
+            for source, spec in sorted(log_sources.items())
+        ],
+        "devices": [
+            {"pattern": d.get("pattern"), "device": d.get("device")} for d in devices
+        ],
+        "hardware": {
+            "present": bool(hardware),
+            "sensors": len(hardware.get("sensors") or []),
+            "motors": len(hardware.get("motors") or []),
+            "gates": bool(hardware.get("gates")),
+            "shutters": bool(hardware.get("shutters")),
+            "transport": bool(hardware.get("transport")),
+            "temporal_window": hardware.get("temporal_analysis") or {},
+        },
+        "event_mappings": {
+            source: len(rules or []) for source, rules in sorted(events.items())
+        },
+        "error_patterns": {
+            source: len(rules or []) for source, rules in sorted(errors.items())
+        },
+        "correlation": model_cfg.get("correlation") or {},
+        "diagnostics": {
+            "rules": [r.id for r in universal_cfg.rules if r.id not in model_rule_ids]
+            + [r.get("id") for r in (diagnostics.get("rules") or []) if r.get("id")],
+            "requirements": [
+                r.get("id") for r in (diagnostics.get("requirements") or []) if r.get("id")
+            ],
+            "reconciliation_checks": sorted(
+                ((diagnostics.get("reconciliation") or {}).get("checks") or {}).keys()
+            ),
+        },
+    }
+
+
 @router.get("/{model_id}", response_model=MachineModelOut)
 def get_model(model_id: str, session: Session = Depends(get_db)) -> MachineModelOut:
     """Model detail; ``{model_id}`` is the model code (e.g. ``P2600N``)."""

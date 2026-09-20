@@ -89,6 +89,10 @@ class TransactionService:
     def _store_draft(self, session: Session, parent_row, draft: TransactionDraft) -> Transaction:
         start, end = draft.time_span()
         amount = draft.fields.get("amount")
+        try:
+            amount = float(amount) if amount is not None else None
+        except (TypeError, ValueError):
+            amount = None  # a non-numeric amount is never stored
         currency = draft.fields.get("currency")
         txn = Transaction(
             transaction_id=draft.transaction_id[:64],

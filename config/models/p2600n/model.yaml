@@ -8,6 +8,13 @@
 # See docs/model-integrations.md for the assumptions & UNKNOWN-field list.
 # =============================================================================
 
+# Phase 6: model detection corroboration (see adapters/base.py detect).
+detection:
+  software_identifiers:
+    - 'eCAT application started'
+    - 'CIM30'
+    - 'Keeper'
+
 code: P2600N
 display_name: GRG P2600N
 vendor: GRG Banking

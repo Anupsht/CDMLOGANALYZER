@@ -41,10 +41,11 @@ MACHINE_MODELS = [
     {
         "code": "P2600L",
         "name": "GRG P2600L",
-        "description": "Placeholder — registered for architecture completeness; "
-        "support is planned for a later phase.",
-        "is_active": False,
-        "is_placeholder": True,
+        "description": "Third model (Phase 6): config-driven adapter + YAML package. "
+        "⚠️ Patterns are SYNTHETIC templates — no real P2600L documentation "
+        "has been received; replace via config/models/p2600l only.",
+        "is_active": True,
+        "is_placeholder": False,
     },
 ]
 

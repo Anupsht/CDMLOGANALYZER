@@ -1,0 +1,82 @@
+# =============================================================================
+# P2600L message patterns → universal event codes (⚠️ SYNTHETIC)
+# =============================================================================
+# P2600L's own token vocabulary (TRX OPEN/CLOSE, NOTES IN/TAKEN/OUT, BOX PUT,
+# HST QRY/OK/NO, COUNT DONE, CHECK OK …). NOT derived from P2600N or P2800N.
+# First match wins — order by specificity.
+# =============================================================================
+
+apl:
+  - pattern: 'TRX OPEN'
+    event: TRANSACTION_STARTED
+  - pattern: 'NOTES IN'
+    event: CASH_INSERTED
+  - pattern: 'NOTES TAKEN'
+    event: CASH_ACCEPTED
+  - pattern: 'COUNT DONE'
+    event: CASH_COUNTING_COMPLETED
+  - pattern: 'CHECK OK'
+    event: VALIDATION_PASSED
+  - pattern: 'CHECK FAIL'
+    event: VALIDATION_FAILED
+    severity: WARNING
+  - pattern: 'HST QRY'
+    event: HOST_REQUEST
+  - pattern: 'HST OK'
+    event: HOST_RESPONSE
+  - pattern: 'HST NO'
+    event: HOST_DECLINED
+    severity: WARNING
+  - pattern: 'BOX PUT'
+    event: CASH_STORED
+  - pattern: 'BOX REJ'
+    event: CASH_REJECTED
+    severity: WARNING
+  - pattern: 'NOTES OUT'
+    event: CASH_RETURNED
+  - pattern: 'TRX CLOSE OK'
+    event: TRANSACTION_COMPLETED
+  - pattern: 'TRX CLOSE FAIL'
+    event: TRANSACTION_FAILED
+    severity: ERROR
+
+jal:
+  - pattern: '\|IN\|'
+    event: CASH_INSERTED
+  - pattern: '\|TAKEN\|'
+    event: CASH_ACCEPTED
+  - pattern: '\|OUT\|'
+    event: CASH_RETURNED
+  - pattern: '\|PUT\|'
+    event: CASH_STORED
+  - pattern: '\|FAIL\|'
+    event: TRANSACTION_FAILED
+    severity: ERROR
+  - pattern: '\|DONE\|$'
+    event: TRANSACTION_COMPLETED
+
+dgn:
+  - pattern: 'MOT[0-9]+ start'
+    event: MOTOR_STARTED
+    severity: DEBUG
+  - pattern: 'MOT[0-9]+ stop'
+    event: MOTOR_STOPPED
+    severity: DEBUG
+  - pattern: 'SN[0-9]+ [0-9]+->[0-9]+'
+    event: SENSOR_CHANGED
+    severity: DEBUG
+  - pattern: 'GATE[0-9]* cmd'
+    event: GATE_COMMANDED
+  - pattern: 'GATE[0-9]* pos'
+    event: GATE_POSITION
+    severity: DEBUG
+  - pattern: 'jam'
+    event: JAM_DETECTED
+    severity: WARNING
+  - pattern: 'jam clear'
+    event: JAM_CLEARED
+  - pattern: 'offline|unavailable'
+    event: DEVICE_UNAVAILABLE
+    severity: WARNING
+
+default: []   # sources without mappings → UNMAPPED

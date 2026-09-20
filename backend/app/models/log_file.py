@@ -106,6 +106,8 @@ class LogFile(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
     source_confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
     detection_method: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    # Phase 6: ranked model-detection candidates + per-signal evidence.
+    detection_evidence: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     parser_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
     parser_version: Mapped[str | None] = mapped_column(String(32), nullable=True)
 

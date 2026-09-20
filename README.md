@@ -1,7 +1,10 @@
 # Universal GRG CDM Log Analyzer
 
 Production-grade log analysis platform for GRG Banking CDM (Cash Dispensing Module)
-terminals — **P2600N**, **P2800N**, **P2600L** and future models.
+terminals — **P2600N**, **P2800N**, **P2600L** and future models. Models
+are plugins: each is a YAML config package + thin adapter, auto-detected
+from filename/content/software/device evidence — the universal engine has
+zero model branches.
 
 > **Phase 1 — Foundation.** This repository currently implements the platform
 > foundation: upload pipeline, safe ZIP extraction, immutable raw log storage,
@@ -28,7 +31,7 @@ docker compose up -d --build
 | Redis      | localhost:6379               | Celery broker                  |
 
 The backend applies migrations/seeds reference data on startup (models
-P2600N/P2800N, placeholder P2600L, log sources, parser registry).
+P2600N, P2800N and P2600L — all active, log sources, parser registry).
 
 Then try it:
 
@@ -91,11 +94,11 @@ backend/               FastAPI application
     schemas/           Pydantic request/response contracts
     services/          upload, zip, detection, machine, audit, pipeline
     parsers/           BaseParser + registry + GenericTextParser
-    adapters/          BaseModelAdapter + P2600N/P2800N/P2600L placeholders
+    adapters/          BaseModelAdapter + P2600N/P2800N/P2600L (plugin registry)
     tasks/             queue abstraction: Celery (Redis) or inline
     analysis/ rules/   reserved for Phase 2+ (empty by design)
   alembic/             migrations
-  tests/               pytest suite (158 tests) + synthetic fixtures
+  tests/               pytest suite (171 tests) + synthetic fixtures
 frontend/              React + TypeScript + Tailwind dashboard
 config/                per-model YAML packages (config/models/<code>/)
 docker/                Dockerfiles + nginx config
