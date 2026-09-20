@@ -169,6 +169,31 @@ class HardwareService:
     # queries (API)
     # ------------------------------------------------------------------
     def hardware_payload(self, session: Session, txn: Transaction) -> dict:
+        """Everything the hardware-timeline endpoint returns, as dicts.
+
+        Transactions correlated before a model's hardware.yaml existed are
+        analyzed lazily on first read, so the reconstruction chain is
+        available for every transaction of a hardware-capable model.
+        """
+        has_rows = (
+            session.query(FaultAssessment.id)
+            .filter(FaultAssessment.transaction_id == txn.id)
+            .first()
+            is not None
+        )
+        if not has_rows and analyzer_for(txn.model_code or "") is not None:
+            try:
+                self.analyze_transaction(session, txn)
+                session.commit()
+            except Exception:
+                logger.exception(
+                    "Lazy hardware analysis failed",
+                    extra={"operation": "hardware.analyze", "transaction_id": txn.transaction_id},
+                )
+                session.rollback()
+        return self._build_payload(session, txn)
+
+    def _build_payload(self, session: Session, txn: Transaction) -> dict:
         """Everything the hardware-timeline endpoint returns, as dicts."""
         txn_id = txn.id
         cash = (

@@ -25,6 +25,11 @@ timeouts, expected sensors, jam indications and temporal windows are all
 data in `config/models/<code>/hardware.yaml` (currently SYNTHETIC — see
 [model-integrations.md](model-integrations.md)).
 
+Analysis runs at correlation time; transactions stored before a model
+gained its `hardware.yaml` are analyzed lazily on first read of the
+hardware endpoint, so the reconstruction chain is available for every
+transaction of a hardware-capable model.
+
 ## 2. Cash lifecycle
 
 Universal states:
