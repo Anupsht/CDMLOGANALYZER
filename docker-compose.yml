@@ -1,0 +1,110 @@
+# =====================================================================
+# Universal GRG CDM Log Analyzer — Phase 1 foundation
+# Services: mysql, redis, backend (FastAPI + Celery worker), frontend
+# Start:    docker compose up -d --build
+# =====================================================================
+
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: cdm-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root_password}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-cdm_analyzer}
+      MYSQL_USER: ${MYSQL_USER:-cdm}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-cdm_password}
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-root_password}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    container_name: cdm-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: ../docker/backend.Dockerfile
+    container_name: cdm-backend
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      CDM_DATABASE_URL: mysql+pymysql://${MYSQL_USER:-cdm}:${MYSQL_PASSWORD:-cdm_password}@mysql:3306/${MYSQL_DATABASE:-cdm_analyzer}?charset=utf8mb4
+      CDM_REDIS_URL: redis://redis:6379/0
+      CDM_CELERY_BROKER_URL: redis://redis:6379/0
+      CDM_CELERY_RESULT_BACKEND: redis://redis:6379/0
+    ports:
+      - "8000:8000"
+    volumes:
+      - upload_data:/app/data
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz')"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+  worker:
+    build:
+      context: ./backend
+      dockerfile: ../docker/backend.Dockerfile
+    container_name: cdm-worker
+    restart: unless-stopped
+    command: ["celery", "-A", "app.tasks.celery_app:celery", "worker", "--loglevel=INFO", "--concurrency=2"]
+    env_file:
+      - .env
+    environment:
+      CDM_DATABASE_URL: mysql+pymysql://${MYSQL_USER:-cdm}:${MYSQL_PASSWORD:-cdm_password}@mysql:3306/${MYSQL_DATABASE:-cdm_analyzer}?charset=utf8mb4
+      CDM_REDIS_URL: redis://redis:6379/0
+      CDM_CELERY_BROKER_URL: redis://redis:6379/0
+      CDM_CELERY_RESULT_BACKEND: redis://redis:6379/0
+    volumes:
+      - upload_data:/app/data
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: .
+      dockerfile: ./docker/frontend.Dockerfile
+    container_name: cdm-frontend
+    restart: unless-stopped
+    ports:
+      - "5173:80"
+    depends_on:
+      backend:
+        condition: service_started
+
+volumes:
+  mysql_data:
+  redis_data:
+  upload_data:

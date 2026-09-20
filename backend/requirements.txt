@@ -1,0 +1,26 @@
+# Universal GRG CDM Log Analyzer — backend requirements (Phase 1)
+
+# Web framework
+fastapi>=0.115,<1.0
+uvicorn[standard]>=0.30,<1.0
+python-multipart>=0.0.9
+
+# Data / validation
+pydantic>=2.7,<3.0
+pydantic-settings>=2.2,<3.0
+sqlalchemy>=2.0.30,<2.1
+
+# MySQL driver (used in Docker / production)
+PyMySQL>=1.1,<2.0
+cryptography>=42.0
+
+# Migrations
+alembic>=1.13,<2.0
+
+# Background processing (Redis + Celery; optional at runtime)
+celery[redis]>=5.4,<6.0
+redis>=5.0,<6.0
+
+# Testing
+pytest>=8.0,<9.0
+httpx>=0.27,<1.0

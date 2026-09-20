@@ -1,0 +1,21 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: rgb(2 6 23);
+}
+::-webkit-scrollbar-thumb {
+  background: rgb(51 65 85);
+  border-radius: 6px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgb(71 85 105);
+}
