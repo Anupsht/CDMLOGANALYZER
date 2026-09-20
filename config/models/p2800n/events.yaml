@@ -6,6 +6,40 @@
 # =============================================================================
 
 app:
+  # ---- Phase 4 hardware codes (must precede generic patterns) ----
+  - pattern: 'JAM\|CLEARED'
+    event: JAM_CLEARED
+  - pattern: '\|JAM\|'
+    event: JAM_DETECTED
+    severity: WARNING
+  - pattern: 'TRANSPORT\|TIMEOUT'
+    event: TRANSPORT_TIMEOUT
+    severity: WARNING
+  - pattern: 'MOTOR\|TRANSPORT\|START'
+    event: TRANSPORT_STARTED
+  - pattern: 'MOTOR\|TRANSPORT\|STOP'
+    event: TRANSPORT_STOPPED
+  - pattern: 'MOTOR\|[A-Z0-9_]+\|START'
+    event: MOTOR_STARTED
+    severity: DEBUG
+  - pattern: 'MOTOR\|[A-Z0-9_]+\|STOP'
+    event: MOTOR_STOPPED
+    severity: DEBUG
+  - pattern: 'SENS\|[A-Z0-9_]+\|'
+    event: SENSOR_CHANGED
+    severity: DEBUG
+  - pattern: 'GATE\|[A-Z0-9_]+\|CMD\|'
+    event: GATE_COMMANDED
+  - pattern: 'GATE\|[A-Z0-9_]+\|POS\|'
+    event: GATE_POSITION
+    severity: DEBUG
+  - pattern: 'SHTR\|[A-Z0-9_]+\|CMD\|'
+    event: SHUTTER_COMMANDED
+  - pattern: 'SHTR\|[A-Z0-9_]+\|POS\|'
+    event: SHUTTER_POSITION
+    severity: DEBUG
+  - pattern: 'ESCROW_HOLD'
+    event: CASH_ESCROWED
   - pattern: 'TRX\|\s*OPEN'
     event: TRANSACTION_STARTED
   - pattern: 'TRX\|\s*CLOSE\|\s*OK'

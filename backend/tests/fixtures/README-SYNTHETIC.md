@@ -25,3 +25,9 @@ Fixture scenarios covered (both models):
 |---|---|
 | `p2600n/` | 1 successful, 1 host-declined, 1 incomplete transaction across 6 sources |
 | `p2800n/` | 1 successful, 1 host-declined, 1 incomplete transaction across 4 sources |
+| `p2800n_hw/` | Phase 4: nine single-source (APP) transactions — normal transport, sensor timeout, transport timeout, motor timeout (STAKER), confirmed jam, sensor mismatch, repeated transport start, gate position mismatch, shutter position unknown |
+| `p2600n_hw/` | Phase 4: two transactions — normal transport (eCAT+CIM), confirmed jam (eCAT+CIM+Keeper `jam detected`) |
+
+The `_hw` directories exercise the universal hardware analyzer
+(`app/analysis/hardware.py`) through each model's SYNTHETIC
+`hardware.yaml` — see docs/hardware-analysis.md.

@@ -48,6 +48,20 @@ ERROR = "ERROR"
 UNMAPPED = "UNMAPPED"  # line understood structurally, semantics not mapped
 UNKNOWN = "UNKNOWN"  # cannot even establish the line semantics
 
+# Phase 4 (hardware/cash-flow): transport, gate/shutter and jam codes.
+# A JAM_DETECTED event is an *indication in the logs* — never by itself a
+# confirmed jam; classification happens in app/analysis/hardware.py.
+CASH_ESCROWED = "CASH_ESCROWED"  # notes held in escrow
+GATE_COMMANDED = "GATE_COMMANDED"
+GATE_POSITION = "GATE_POSITION"
+SHUTTER_COMMANDED = "SHUTTER_COMMANDED"
+SHUTTER_POSITION = "SHUTTER_POSITION"
+TRANSPORT_STARTED = "TRANSPORT_STARTED"
+TRANSPORT_STOPPED = "TRANSPORT_STOPPED"
+TRANSPORT_TIMEOUT = "TRANSPORT_TIMEOUT"
+JAM_DETECTED = "JAM_DETECTED"
+JAM_CLEARED = "JAM_CLEARED"
+
 NORMALIZED_EVENTS: tuple[str, ...] = (
     TRANSACTION_STARTED,
     CASH_INSERTED,
@@ -72,6 +86,16 @@ NORMALIZED_EVENTS: tuple[str, ...] = (
     ERROR,
     UNMAPPED,
     UNKNOWN,
+    CASH_ESCROWED,
+    GATE_COMMANDED,
+    GATE_POSITION,
+    SHUTTER_COMMANDED,
+    SHUTTER_POSITION,
+    TRANSPORT_STARTED,
+    TRANSPORT_STOPPED,
+    TRANSPORT_TIMEOUT,
+    JAM_DETECTED,
+    JAM_CLEARED,
 )
 
 SEVERITIES: tuple[str, ...] = ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL")
@@ -85,6 +109,12 @@ _DEFAULT_SEVERITY = {
     TRANSACTION_FAILED: "ERROR",
     UNMAPPED: "DEBUG",
     UNKNOWN: "DEBUG",
+    # Phase 4 hardware codes. Jam indications are WARNING on purpose: a
+    # single event must not claim a confirmed jam.
+    TRANSPORT_TIMEOUT: "WARNING",
+    JAM_DETECTED: "WARNING",
+    GATE_POSITION: "DEBUG",
+    SHUTTER_POSITION: "DEBUG",
 }
 
 

@@ -7,11 +7,13 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_db
 from app.schemas.common import ListResponse
+from app.schemas.hardware import HardwareTimelineOut
 from app.schemas.transaction import (
     TimelineOut,
     TransactionDetailOut,
     TransactionOut,
 )
+from app.services.hardware_service import hardware_service
 from app.services.transaction_service import transaction_service
 
 router = APIRouter(prefix="/transactions", tags=["transactions"])
@@ -60,3 +62,22 @@ def get_transaction_timeline(txn_id: str, session: Session = Depends(get_db)) ->
     entries — never invented.
     """
     return TimelineOut.model_validate(transaction_service.timeline(session, txn_id), from_attributes=True)
+
+
+@router.get("/{txn_id}/hardware", response_model=HardwareTimelineOut)
+def get_transaction_hardware(txn_id: str, session: Session = Depends(get_db)) -> HardwareTimelineOut:
+    """Hardware & cash-flow timeline (Phase 4).
+
+    Reconstructs, with raw evidence (file + line + raw text) on every
+    derived record:
+
+        Transaction → Cash → Device → Sensor/Motor/Gate → Fault → Final
+        Cash State
+
+    Fault classifications are evidence-based (CONFIRMED_JAM requires
+    multiple independent log sources); a single error code never equals a
+    confirmed jam, and statements never claim component-level root causes.
+    """
+    txn = transaction_service.get(session, txn_id)
+    payload = hardware_service.hardware_payload(session, txn)
+    return HardwareTimelineOut.model_validate(payload, from_attributes=True)

@@ -8,6 +8,9 @@ Each supported model ships a data package under::
         log_sources.yaml   source detection + parser definitions
         errors.yaml        error-code patterns (per source)
         events.yaml        message patterns → universal event codes
+        hardware.yaml      Phase 4: hardware extraction (sensors, motors,
+                           gates/shutters, transport, jam indications,
+                           temporal windows) — optional
 
 The universal engine (analysis/, parsers/configured.py) interprets this
 data; it contains **no** model-specific conditionals. Adding or fixing a
@@ -32,7 +35,7 @@ from app.core.config import get_settings
 
 logger = logging.getLogger(__name__)
 
-CONFIG_FILES = ("model", "devices", "log_sources", "errors", "events")
+CONFIG_FILES = ("model", "devices", "log_sources", "errors", "events", "hardware")
 
 
 def _default_config_root() -> Path:

@@ -61,11 +61,15 @@ assumptions is a YAML-and-fixtures change, never a code change.**
    (`correlation.primary_key`, `rules[].key/weight/window_seconds`) and the
    `key_extract` patterns in `log_sources.yaml`. Keys, weights and windows
    are data.
-5. **Replace fixtures** — drop real sanitized samples into
+5. **Update hardware extraction** — `config/models/<code>/hardware.yaml`
+   (Phase 4): sensor/motor/gate/shutter line patterns, transport motor
+   names, timeouts, expected sensors, jam indications, temporal windows,
+   note extraction. See [hardware-analysis.md](hardware-analysis.md).
+6. **Replace fixtures** — drop real sanitized samples into
    `backend/tests/fixtures/<code>/` (keep the same scenario matrix: success,
    host-declined, incomplete, malformed line, orphan line) and update
    `README-SYNTHETIC.md`.
-6. Run `pytest` — the whole suite must stay green. If a test encoded a
+7. Run `pytest` — the whole suite must stay green. If a test encoded a
    synthetic assumption that real logs disprove, fix the *fixture/YAML*,
    not the engine.
 

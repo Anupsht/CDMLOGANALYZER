@@ -1,0 +1,60 @@
+# =============================================================================
+# P2600N hardware / cash-flow extraction (Phase 4)
+# =============================================================================
+# ⚠️ SYNTHETIC patterns — P2600N hardware log formats are not confirmed.
+# Uses the CIM30/Keeper line style seen in the Phase-2 file inventory; the
+# universal engine (backend/app/analysis/hardware.py) contains no
+# model-specific logic. Replace with real evidence via this file only.
+# =============================================================================
+
+sensors:
+  # "CIM30: sensor S12 changed 0->1"
+  - pattern: 'sensor\s+(?P<name>\S+)\s+changed\s+(?P<previous>\S+)->(?P<new>\S+)'
+
+motors:
+  - name: motor
+    start_pattern: 'motor\s+(?P<name>\S+)\s+start'
+    stop_pattern: 'motor\s+(?P<name>\S+)\s+stop'
+    timeout_ms: 8000
+
+gates:
+  command_pattern: 'gate\s+(?P<name>\S+)\s+cmd\s+(?P<command>[A-Za-z]+)'
+  position_pattern: 'gate\s+(?P<name>\S+)\s+pos\s+(?P<state>[A-Za-z]+)'
+  transition_timeout_ms: 5000
+  expected_state_map:
+    OPEN: OPEN
+    CLOSE: CLOSED
+
+# No P2600N shutter source is confirmed — absence is intentional.
+
+transport:
+  motor_names: ['1']
+  timeout_ms: 10000
+  sensors:
+    - sensor: S12
+      expected: '1'
+      blocked: ['0']
+
+temporal_analysis:
+  before_seconds: 30
+  after_seconds: 60
+
+# A single error code (e.g. an EC-xxxx code) is never a confirmed jam by
+# itself; explicit textual jam indications plus corroboration are required.
+jam_indications:
+  patterns:
+    - '(?<!cleared )jam'   # "jam detected …" but not "jam cleared …"
+  events: [JAM_DETECTED]
+
+cash:
+  notes:
+    - key: denomination
+      pattern: 'DENOM[=:]([0-9]+)'
+      type: int
+    - key: serial
+      pattern: 'SERIAL[=:]([A-Za-z0-9]+)'
+      type: str
+    - key: position
+      pattern: 'CASSETTE[=:]([A-Za-z0-9]+)'
+      type: str
+  lifecycle_overrides: {}

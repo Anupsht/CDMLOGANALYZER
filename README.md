@@ -75,6 +75,7 @@ Full details: [docs/setup.md](docs/setup.md).
 | [docs/parser-development.md](docs/parser-development.md) | How to write/registered parsers, source detection rules |
 | [docs/model-adapter-development.md](docs/model-adapter-development.md) | **How to add a new CDM model** (adapter + registry + seed) |
 | [docs/model-integrations.md](docs/model-integrations.md) | P2600N/P2800N integrations: SYNTHETIC assumptions & the YAML-only replacement path |
+| [docs/hardware-analysis.md](docs/hardware-analysis.md) | Phase 4 cash lifecycle, hardware correlation & jam classification |
 | [docs/setup.md](docs/setup.md) | Environment variables, Docker, local dev, troubleshooting |
 
 ## Project structure
@@ -93,7 +94,7 @@ backend/               FastAPI application
     tasks/             queue abstraction: Celery (Redis) or inline
     analysis/ rules/   reserved for Phase 2+ (empty by design)
   alembic/             migrations
-  tests/               pytest suite (105 tests) + synthetic fixtures
+  tests/               pytest suite (134 tests) + synthetic fixtures
 frontend/              React + TypeScript + Tailwind dashboard
 config/                per-model YAML packages (config/models/<code>/)
 docker/                Dockerfiles + nginx config
@@ -126,9 +127,10 @@ with the same `request_id`).
 ```bash
 cd backend
 source .venv/bin/activate
-pytest            # 105 tests: DB, upload, ZIP security, checksums, dedup,
+pytest            # 134 tests: DB, upload, ZIP security, checksums, dedup,
                   # parser selection, model registry, detection, API, pipeline,
-                  # correlator, P2600N + P2800N transactions, model comparison
+                  # correlator, P2600N + P2800N transactions, model comparison,
+                  # cash lifecycle, hardware correlation, jam classification
 ```
 
 Tests are self-contained (temporary SQLite + eager queue) — no MySQL/Redis needed.

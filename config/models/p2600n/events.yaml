@@ -46,6 +46,15 @@ ecat:
     severity: ERROR
 
 cim:
+  # ---- Phase 4 hardware codes (before generic motor/sensor rules) ----
+  - pattern: 'transport timeout'
+    event: TRANSPORT_TIMEOUT
+    severity: WARNING
+  - pattern: 'gate\s+\S+\s+cmd\s+'
+    event: GATE_COMMANDED
+  - pattern: 'gate\s+\S+\s+pos\s+'
+    event: GATE_POSITION
+    severity: DEBUG
   - pattern: 'motor .* start'
     event: MOTOR_STARTED
   - pattern: 'motor .* stop'
@@ -65,6 +74,11 @@ cim:
     severity: WARNING
 
 keeper:
+  - pattern: 'jam cleared'
+    event: JAM_CLEARED
+  - pattern: 'jam'
+    event: JAM_DETECTED
+    severity: WARNING
   - pattern: 'presented'
     event: CASH_RETURNED
   - pattern: 'retracted|retained'

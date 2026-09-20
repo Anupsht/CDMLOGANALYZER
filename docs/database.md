@@ -94,16 +94,38 @@ transaction_events  FK → transactions, log_files (evidence pointer)
   (`raw=None`) — they are never invented.
 * Migration: `e160ec93b2c1` (7 indexes on model/status/time/evidence FKs).
 
+## Hardware & cash-flow analysis (Phase 4)
+
+```
+cash_movements      FK → transactions; from_state → to_state, timestamp,
+                    device, evidence_event, confidence, note_info (JSON),
+                    raw evidence pointer
+sensor_events       FK → transactions; sensor, previous/new/expected/actual
+                    state, abnormal_duration_ms, raw evidence pointer
+motor_events        FK → transactions; start/stop, duration_ms, timeout_ms,
+                    timed_out, transport_name, sensor_transitions (JSON)
+gate_events         FK → transactions; gate|shutter command vs. position,
+                    transition_ms, timed_out, state_mismatch
+transport_events    FK → transactions; outcome (COMPLETED | TIMEOUT |
+                    MISSING_SENSOR_TRANSITION | REPEATED_MOVEMENT |
+                    UNEXPECTED_STATE | UNKNOWN)
+fault_assessments   FK → transactions; classification (CONFIRMED_JAM |
+                    PROBABLE_JAM | POSSIBLE_JAM | NO_EVIDENCE_OF_JAM |
+                    INSUFFICIENT_DATA), hedged statement, evidence (JSON),
+                    analysis_window (JSON)
+```
+
+Migration: `c7d21e5a8f40`. Every row that derives from a log line keeps
+`(log_file_id, line_number, raw_text)` — diagnoses never exist without
+inspectable evidence.
+
 ## Future phases
 
 The schema is designed so later phases **add** tables without altering the
 core:
 
 ```
-cash_movements      FK → transactions, machine_components
-faults              FK → machines, machine_components, log_lines
-sensor_events       FK → machine_components, log_lines
-motor_events        FK → machine_components, log_lines
+rules / AI analysis / reporting tables (later phases)
 ```
 
 Because every parsed line keeps its `raw_text` and `(log_file_id,

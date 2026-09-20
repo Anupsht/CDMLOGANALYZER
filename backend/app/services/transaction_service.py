@@ -51,8 +51,19 @@ class TransactionService:
                 if not any(e.keys.get(ccfg.primary_key) for e in draft.events):
                     draft.transaction_id = auto_transaction_id(ccfg.auto_id_prefix, model_code, draft)
                     draft.method = f"{draft.method}+auto_id"
-                self._store_draft(session, parent_row, draft)
+                txn = self._store_draft(session, parent_row, draft)
                 stored += 1
+                # Phase 4: hardware / cash-flow analysis per transaction.
+                # Failure must never break correlation — logged and skipped.
+                try:
+                    from app.services.hardware_service import hardware_service
+
+                    hardware_service.analyze_transaction(session, txn)
+                except Exception:
+                    logger.exception(
+                        "Hardware analysis failed (transaction kept)",
+                        extra={"operation": "hardware.analyze", "transaction_id": txn.transaction_id},
+                    )
             logger.info(
                 "Correlation complete for model",
                 extra={

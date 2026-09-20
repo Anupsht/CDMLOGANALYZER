@@ -18,6 +18,14 @@ from app.models.parser import ParserVersion
 from app.models.configuration import ModelConfiguration
 from app.models.audit import AuditLog
 from app.models.transaction import Transaction, TransactionEvent
+from app.models.hardware import (
+    CashMovement,
+    FaultAssessment,
+    GateEvent,
+    MotorEvent,
+    SensorEvent,
+    TransportEvent,
+)
 
 __all__ = [
     "User",
@@ -32,4 +40,10 @@ __all__ = [
     "AuditLog",
     "Transaction",
     "TransactionEvent",
+    "CashMovement",
+    "SensorEvent",
+    "MotorEvent",
+    "GateEvent",
+    "TransportEvent",
+    "FaultAssessment",
 ]
