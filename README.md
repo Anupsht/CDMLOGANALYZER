@@ -6,6 +6,29 @@ are plugins: each is a YAML config package + thin adapter, auto-detected
 from filename/content/software/device evidence — the universal engine has
 zero model branches.
 
+## Technician dashboard (Phase 7)
+
+- **Operations Dashboard** — fleet (total / online / offline), transaction
+  totals, hardware errors, possible jams, cash exceptions, host failures —
+  all evidence-based counters from `/api/dashboard/summary`.
+- **Transaction Explorer** — server-side filters: date, time, machine,
+  model, transaction ID, amount range, status, host result, cash state,
+  error code, event code, device; sortable, paginated.
+- **Transaction Details** — 12 sections: Transaction / Cash / Host /
+  Hardware summaries, interactive Timeline (click any event → original log
+  line), Cash Trace (STORED/RETURNED/REJECTED/UNKNOWN classification),
+  Errors, Sensors, Motors, Analysis (rules-engine report), Evidence (every
+  raw line, jump-to-file-and-line), Recommendations, JSON/print export.
+- **Machine Health** — per-machine failure rate, jam frequency, hardware
+  errors, sensor abnormalities, device-unavailable and reset/recovery
+  events + a *configurable heuristic score* (weights adjustable; the score
+  is a triage aid, never presented as a diagnosis).
+- **Log Viewer** — virtualized raw-line display (server-side windowed
+  fetching), server-side search, level/source/transaction filtering,
+  timestamp & line navigation, context lines, jump-to-evidence.
+
+See `docs/technician-dashboard.md` for the page-by-page reference.
+
 > **Phase 1 — Foundation.** This repository currently implements the platform
 > foundation: upload pipeline, safe ZIP extraction, immutable raw log storage,
 > a parser framework, a model/plugin adapter architecture, MySQL persistence,
@@ -98,8 +121,8 @@ backend/               FastAPI application
     tasks/             queue abstraction: Celery (Redis) or inline
     analysis/ rules/   reserved for Phase 2+ (empty by design)
   alembic/             migrations
-  tests/               pytest suite (171 tests) + synthetic fixtures
-frontend/              React + TypeScript + Tailwind dashboard
+  tests/               pytest suite (180 tests) + synthetic fixtures
+frontend/              React + TypeScript + Tailwind technician dashboard
 config/                per-model YAML packages (config/models/<code>/)
 docker/                Dockerfiles + nginx config
 docs/                  developer documentation

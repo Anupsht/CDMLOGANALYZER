@@ -5,6 +5,8 @@ import type { Health } from "../types";
 
 const NAV = [
   { to: "/", label: "Dashboard", icon: "◧" },
+  { to: "/transactions", label: "Transactions", icon: "⇄" },
+  { to: "/health", label: "Machine Health", icon: "♥" },
   { to: "/logs", label: "Logs", icon: "▤" },
   { to: "/models", label: "Models", icon: "⛭" },
   { to: "/machines", label: "Machines", icon: "🏧" },
@@ -38,7 +40,7 @@ export default function Layout() {
           </div>
           <div>
             <div className="text-sm font-semibold text-white">CDM Log Analyzer</div>
-            <div className="text-[11px] text-slate-400">Universal GRG · Phase 1</div>
+            <div className="text-[11px] text-slate-400">Universal GRG · Technician Console</div>
           </div>
         </div>
         <nav className="mt-2 flex-1 space-y-1 px-3">

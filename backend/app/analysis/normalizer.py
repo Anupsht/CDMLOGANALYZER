@@ -136,8 +136,14 @@ class EventNormalizer:
         if device:
             return device
         for pattern, rule in self._device_rules:
-            if pattern.search(raw_text):
-                return rule.get("device") or rule.get("name")
+            match = pattern.search(raw_text)
+            if match:
+                name = rule.get("device") or rule.get("name")
+                if name and match.groups() and "$" in name:
+                    # Device templates may reference capture groups ($1, $2…),
+                    # e.g. devices.yaml pattern '\bMOT([0-9]+)\b' → 'Motor-$1'.
+                    name = _substitute_groups(name, match)
+                return name
         return None
 
     @staticmethod

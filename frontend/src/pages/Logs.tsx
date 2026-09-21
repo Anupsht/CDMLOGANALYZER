@@ -95,6 +95,7 @@ export default function Logs() {
                 <th className="px-5 py-2.5 font-medium">File</th>
                 <th className="px-3 py-2.5 font-medium">Type</th>
                 <th className="px-3 py-2.5 font-medium">Size</th>
+                <th className="px-3 py-2.5 font-medium">Viewer</th>
                 <th className="px-3 py-2.5 font-medium">Checksum</th>
                 <th className="px-3 py-2.5 font-medium">Source</th>
                 <th className="px-3 py-2.5 font-medium">Model</th>
@@ -124,6 +125,19 @@ export default function Logs() {
                     )}
                   </td>
                   <td className="whitespace-nowrap px-3 py-2.5 text-slate-400">{formatSize(log.size_bytes)}</td>
+                  <td className="whitespace-nowrap px-3 py-2.5">
+                    <a
+                      href={`/logs/${log.id}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        window.location.href = `/logs/${log.id}`;
+                      }}
+                      className="text-[11px] text-indigo-400 hover:underline"
+                      title="open in log viewer"
+                    >
+                      viewer ↗
+                    </a>
+                  </td>
                   <td className="px-3 py-2.5">
                     <span
                       className="font-mono text-[11px] text-slate-500"

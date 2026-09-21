@@ -7,7 +7,7 @@ export default function StatCard({
   label: string;
   value: string | number;
   hint?: string;
-  accent?: "indigo" | "emerald" | "amber" | "rose" | "slate";
+  accent?: "indigo" | "emerald" | "amber" | "rose" | "slate" | "yellow" | "violet";
 }) {
   const accents: Record<string, string> = {
     indigo: "text-indigo-300",
@@ -15,6 +15,8 @@ export default function StatCard({
     amber: "text-amber-300",
     rose: "text-rose-300",
     slate: "text-slate-300",
+    yellow: "text-yellow-300",
+    violet: "text-violet-300",
   };
   return (
     <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-5">

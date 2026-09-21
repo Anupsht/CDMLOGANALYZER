@@ -144,13 +144,48 @@ def get_log_status(file_id: str, session: Session = Depends(get_db)) -> LogFileS
 @router.get("/{file_id}/lines", response_model=ListResponse[LogLineOut])
 def get_log_lines(
     file_id: str,
+    q: str | None = Query(default=None, max_length=200, description="substring search on raw text"),
+    level: str | None = Query(default=None, description="filter by level, e.g. ERROR"),
+    line_from: int | None = Query(default=None, ge=1),
+    line_to: int | None = Query(default=None, ge=1),
+    ts_from: str | None = Query(default=None, description="ISO datetime — lines at/after"),
+    ts_to: str | None = Query(default=None, description="ISO datetime — lines at/before"),
     limit: int = Query(default=100, ge=1, le=1000),
     offset: int = Query(default=0, ge=0),
     session: Session = Depends(get_db),
 ) -> ListResponse[LogLineOut]:
-    """Raw stored lines (evidence trace). Original text is never modified."""
+    """Raw stored lines (evidence trace). Original text is never modified.
+
+    Server-side search/filter/pagination keeps large files responsive; the
+    frontend renders a windowed view over this endpoint.
+    """
     row = upload_service.get(session, file_id)
     query = session.query(LogLine).filter(LogLine.log_file_id == row.id)
+    if q:
+        query = query.filter(LogLine.raw_text.contains(q))
+    if level:
+        query = query.filter(LogLine.level == level.upper())
+    if line_from is not None:
+        query = query.filter(LogLine.line_number >= line_from)
+    if line_to is not None:
+        query = query.filter(LogLine.line_number <= line_to)
+    if ts_from:
+        parsed = _parse_ts(ts_from)
+        if parsed is not None:
+            query = query.filter(LogLine.timestamp >= parsed)
+    if ts_to:
+        parsed = _parse_ts(ts_to)
+        if parsed is not None:
+            query = query.filter(LogLine.timestamp <= parsed)
     total = query.count()
     lines = query.order_by(LogLine.line_number.asc()).offset(offset).limit(limit).all()
     return ListResponse(items=lines, total=total, limit=limit, offset=offset)
+
+
+def _parse_ts(value: str):
+    from datetime import datetime
+
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00")).replace(tzinfo=None)
+    except ValueError:
+        return None

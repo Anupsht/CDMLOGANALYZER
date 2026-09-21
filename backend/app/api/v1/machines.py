@@ -7,8 +7,10 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_db
 from app.schemas.common import ListResponse
+from app.schemas.dashboard import MachineHealthMetrics
 from app.schemas.machine import MachineCreate, MachineOut
 from app.services.audit_service import audit_service
+from app.services.dashboard_service import dashboard_service
 from app.services.machine_service import machine_service
 
 router = APIRouter(prefix="/machines", tags=["machines"])
@@ -42,3 +44,25 @@ def create_machine(payload: MachineCreate, session: Session = Depends(get_db)) -
 @router.get("/{machine_id}", response_model=MachineOut)
 def get_machine(machine_id: str, session: Session = Depends(get_db)) -> MachineOut:
     return machine_service.get(session, machine_id)
+
+
+@router.get("/{machine_id}/health", response_model=MachineHealthMetrics)
+def get_machine_health(
+    machine_id: str,
+    window_days: int = Query(default=30, ge=1, le=365),
+    session: Session = Depends(get_db),
+) -> MachineHealthMetrics:
+    """Raw per-machine health counters (Phase 7).
+
+    Evidence-based counters only — the frontend computes a configurable,
+    explicitly non-definitive score from these numbers.
+    """
+    try:
+        metrics = dashboard_service.machine_health(
+            session, machine_id, window_days=window_days
+        )
+    except LookupError as exc:
+        from app.core.errors import NotFoundError
+
+        raise NotFoundError(str(exc)) from exc
+    return MachineHealthMetrics.model_validate(metrics)

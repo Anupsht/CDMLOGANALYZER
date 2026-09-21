@@ -38,7 +38,7 @@ export default function FileDetailDrawer({
     let cancelled = false;
     api.getLogStatus(file.id).then((s) => !cancelled && setStatus(s)).catch(() => {});
     api
-      .getLogLines(file.id, PAGE_SIZE, page * PAGE_SIZE)
+      .getLogLines(file.id, { limit: PAGE_SIZE, offset: page * PAGE_SIZE })
       .then((res) => {
         if (cancelled) return;
         setLines(res.items);

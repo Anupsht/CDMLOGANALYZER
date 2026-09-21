@@ -19,3 +19,26 @@
 ::-webkit-scrollbar-thumb:hover {
   background: rgb(71 85 105);
 }
+
+/* Print: the transaction detail page prints the full analysis. */
+@media print {
+  body {
+    background: white !important;
+    color: black !important;
+  }
+  aside,
+  nav,
+  header button,
+  .print\:hidden {
+    display: none !important;
+  }
+  section,
+  section * {
+    color: black !important;
+    border-color: #ddd !important;
+    background: white !important;
+  }
+  main {
+    overflow: visible !important;
+  }
+}

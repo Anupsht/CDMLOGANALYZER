@@ -26,6 +26,20 @@ def list_transactions(
     machine_id: str | None = Query(default=None),
     status: str | None = Query(default=None, description="COMPLETED|DECLINED|FAILED|INCOMPLETE"),
     transaction_id: str | None = Query(default=None, description="substring search"),
+    date_from: str | None = Query(default=None, description="ISO date/datetime on start_time (from)"),
+    date_to: str | None = Query(default=None, description="ISO date/datetime on start_time (to)"),
+    time_from: str | None = Query(default=None, description="time-of-day HH:MM (from)"),
+    time_to: str | None = Query(default=None, description="time-of-day HH:MM (to)"),
+    amount_min: float | None = Query(default=None, ge=0),
+    amount_max: float | None = Query(default=None, ge=0),
+    currency: str | None = Query(default=None, max_length=8),
+    host_result: str | None = Query(default=None, description="approved|declined|no_response"),
+    cash_state: str | None = Query(default=None, description="STORED|RETURNED|REJECTED|NOT_STORED"),
+    event_code: str | None = Query(default=None, description="transaction has this universal event code"),
+    device: str | None = Query(default=None, description="transaction has an event from this device"),
+    error_code: str | None = Query(default=None, description="ERROR/VALIDATION event whose detail contains this code"),
+    sort: str | None = Query(default=None, description="created_at|start_time|amount|transaction_id"),
+    dir: str | None = Query(default=None, description="asc|desc"),
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
     session: Session = Depends(get_db),
@@ -36,10 +50,45 @@ def list_transactions(
         machine_id=machine_id,
         status=status,
         transaction_id=transaction_id,
+        start_from=_parse_date(date_from),
+        start_to=_parse_date(date_to, end=True),
+        time_from=time_from,
+        time_to=time_to,
+        amount_min=amount_min,
+        amount_max=amount_max,
+        currency=currency,
+        host_result=host_result,
+        cash_state=cash_state,
+        event_code=event_code,
+        device=device,
+        error_code=error_code,
+        sort=sort or "created_at",
+        dir=dir or "desc",
         limit=limit,
         offset=offset,
     )
     return ListResponse(items=items, total=total, limit=limit, offset=offset)
+
+
+def _parse_date(value: str | None, *, end: bool = False):
+    """ISO date or datetime; plain dates expand to full-day boundaries."""
+    if not value:
+        return None
+    from datetime import datetime as dt
+
+    v = value.strip()
+    try:
+        parsed = dt.fromisoformat(v)
+    except ValueError:
+        try:
+            parsed = dt.strptime(v, "%Y-%m-%d")
+        except ValueError:
+            from app.core.errors import ValidationError
+
+            raise ValidationError(f"invalid date filter: {value}") from None
+    if end and len(v) == 10:  # plain date → end of day
+        parsed = parsed.replace(hour=23, minute=59, second=59)
+    return parsed
 
 
 @router.get("/{txn_id}", response_model=TransactionDetailOut)

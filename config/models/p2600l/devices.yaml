@@ -4,11 +4,11 @@
 patterns:
   - pattern: '\bAPL\b'
     device: P2600L-APL
-  - pattern: '\bMOT[0-9]+\b'
-    device: Motor-$0
-  - pattern: '\bSN[0-9]+\b'
-    device: Sensor-$0
+  - pattern: '\bMOT([0-9]+)\b'
+    device: Motor-$1
+  - pattern: '\bSN([0-9]+)\b'
+    device: Sensor-$1
   - pattern: '\bGATE[0-9]*\b'
     device: Gate
-  - pattern: '\bBOX[0-9]*\b'
-    device: Cassette-$0
+  - pattern: '\bBOX([0-9]+)\b'
+    device: Cassette-$1

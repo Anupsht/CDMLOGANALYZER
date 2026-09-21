@@ -3,13 +3,15 @@
 from __future__ import annotations
 
 import logging
+from datetime import datetime, time
 
+from sqlalchemy import String, and_, cast, exists, func, or_
 from sqlalchemy.orm import Session
 
 from app.analysis import events as E
 from app.analysis.correlator import TransactionDraft, auto_transaction_id, correlate
 from app.analysis.reconstructor import STAGE_SEQUENCE, Reconstructor
-from app.core.errors import NotFoundError
+from app.core.errors import NotFoundError, ValidationError
 from app.core.registry import model_registry
 from app.models.transaction import Transaction, TransactionEvent
 
@@ -21,9 +23,75 @@ _STAGE_OF_EVENT: dict[str, str] = {
     code: stage for stage, codes in STAGE_SEQUENCE for code in codes
 }
 
+# Universal event-code groups used by list filters (query logic only —
+# the stored data is never reinterpreted).
+_HOST_RESPONSE_CODES = ("HOST_RESPONSE",)
+_HOST_DECLINED_CODES = ("HOST_DECLINED",)
+_FINAL_CASH_CODES = {
+    "STORED": ("CASH_STORED",),
+    "RETURNED": ("CASH_RETURNED",),
+    "REJECTED": ("CASH_REJECTED",),
+    "NOT_STORED": ("CASH_ACCEPTED", "CASH_ESCROWED"),
+}
+
 
 def _stage_of(event_code: str) -> str | None:
     return _STAGE_OF_EVENT.get(event_code)
+
+
+def _parse_hhmm(value: str) -> tuple[int, int]:
+    try:
+        parts = value.strip().split(":")
+        hh = int(parts[0])
+        mm = int(parts[1]) if len(parts) > 1 else 0
+        if not (0 <= hh <= 23 and 0 <= mm <= 59):
+            raise ValueError(value)
+        return hh, mm
+    except (ValueError, IndexError):
+        raise ValidationError(f"invalid time filter (HH:MM expected): {value}") from None
+
+
+def _time_of_day():
+    """'HH:MM' substring of the stored datetime (SQLite & MySQL layout)."""
+    return func.substr(cast(Transaction.start_time, String), 12, 5)
+
+
+def _has_event(*codes: str):
+    return exists().where(
+        TransactionEvent.transaction_id == Transaction.id,
+        TransactionEvent.event_code.in_(codes),
+    )
+
+
+def _host_result_filter(value: str):
+    v = value.strip().lower()
+    if v == "declined":
+        return _has_event(*_HOST_DECLINED_CODES)
+    if v == "approved":
+        return and_(_has_event(*_HOST_RESPONSE_CODES), ~_has_event(*_HOST_DECLINED_CODES))
+    if v in ("no_response", "no-response", "timeout"):
+        return and_(
+            _has_event("HOST_REQUEST"),
+            ~_has_event(*_HOST_RESPONSE_CODES),
+            ~_has_event(*_HOST_DECLINED_CODES),
+        )
+    raise ValidationError(
+        f"invalid host_result filter: {value} (approved|declined|no_response)"
+    )
+
+
+def _cash_state_filter(value: str):
+    v = value.strip().upper()
+    if v == "NOT_STORED":
+        return and_(
+            _has_event(*_FINAL_CASH_CODES["NOT_STORED"]),
+            ~_has_event(*_FINAL_CASH_CODES["STORED"]),
+        )
+    if v in _FINAL_CASH_CODES:
+        return _has_event(*_FINAL_CASH_CODES[v])
+    raise ValidationError(
+        f"invalid cash_state filter: {value} (STORED|RETURNED|REJECTED|NOT_STORED)"
+    )
 
 
 class TransactionService:
@@ -148,6 +216,20 @@ class TransactionService:
         machine_id: str | None = None,
         status: str | None = None,
         transaction_id: str | None = None,
+        start_from: datetime | None = None,
+        start_to: datetime | None = None,
+        time_from: str | None = None,
+        time_to: str | None = None,
+        amount_min: float | None = None,
+        amount_max: float | None = None,
+        currency: str | None = None,
+        host_result: str | None = None,
+        cash_state: str | None = None,
+        event_code: str | None = None,
+        device: str | None = None,
+        error_code: str | None = None,
+        sort: str = "created_at",
+        dir: str = "desc",
         limit: int = 50,
         offset: int = 0,
     ) -> tuple[list[Transaction], int]:
@@ -160,11 +242,61 @@ class TransactionService:
             query = query.filter(Transaction.status == status.upper())
         if transaction_id:
             query = query.filter(Transaction.transaction_id.contains(transaction_id))
-        total = query.count()
-        return (
-            list(query.order_by(Transaction.created_at.desc(), Transaction.transaction_id).offset(offset).limit(limit)),
-            total,
+        if start_from:
+            query = query.filter(Transaction.start_time >= start_from)
+        if start_to:
+            query = query.filter(Transaction.start_time <= start_to)
+        if time_from:
+            hh, mm = _parse_hhmm(time_from)
+            query = query.filter(_time_of_day() >= f"{hh:02d}:{mm:02d}")
+        if time_to:
+            hh, mm = _parse_hhmm(time_to)
+            query = query.filter(_time_of_day() <= f"{hh:02d}:{mm:02d}")
+        if amount_min is not None:
+            query = query.filter(Transaction.amount >= amount_min)
+        if amount_max is not None:
+            query = query.filter(Transaction.amount <= amount_max)
+        if currency:
+            query = query.filter(Transaction.currency == currency.upper())
+        if host_result:
+            query = query.filter(_host_result_filter(host_result))
+        if cash_state:
+            query = query.filter(_cash_state_filter(cash_state))
+        if event_code:
+            query = query.filter(_has_event(event_code))
+        if device:
+            query = query.filter(
+                exists().where(
+                    TransactionEvent.transaction_id == Transaction.id,
+                    TransactionEvent.device == device,
+                )
+            )
+        if error_code:
+            # ERROR events carry the mapped catalogue code in detail JSON;
+            # the verbatim raw line (original evidence) is searched too.
+            query = query.filter(
+                exists().where(
+                    TransactionEvent.transaction_id == Transaction.id,
+                    TransactionEvent.event_code.in_(("ERROR", "VALIDATION_FAILED")),
+                    or_(
+                        cast(TransactionEvent.detail, String).contains(error_code),
+                        TransactionEvent.raw_text.contains(error_code),
+                    ),
+                )
+            )
+
+        sort_column = {
+            "created_at": Transaction.created_at,
+            "start_time": Transaction.start_time,
+            "amount": Transaction.amount,
+            "transaction_id": Transaction.transaction_id,
+        }.get(sort, Transaction.created_at)
+        query = query.order_by(
+            sort_column.asc() if dir == "asc" else sort_column.desc(),
+            Transaction.transaction_id,
         )
+        total = query.count()
+        return list(query.offset(offset).limit(limit)), total
 
     def timeline(self, session: Session, txn_id: str) -> dict:
         """Chronological normalized events + NOT_CONFIRMED stage markers.

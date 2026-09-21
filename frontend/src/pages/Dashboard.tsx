@@ -1,159 +1,220 @@
+// Phase 7 — technician dashboard (fleet + transaction KPIs, evidence-based).
+
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api/client";
-import type { Health, LogFile, Machine, MachineModel } from "../types";
+import type { DashboardSummary, Transaction } from "../types";
 import StatCard from "../components/StatCard";
-import StatusBadge from "../components/StatusBadge";
-import { formatSize } from "../components/UploadDropzone";
+import { Badge, Card, Empty, ErrorBox, Pagination, Spinner, fmtAmount, fmtTime, statusTone } from "../components/ui";
+import UploadDropzone from "../components/UploadDropzone";
+
+const PAGE = 10;
 
 export default function Dashboard() {
-  const [health, setHealth] = useState<Health | null>(null);
-  const [logs, setLogs] = useState<LogFile[]>([]);
-  const [models, setModels] = useState<MachineModel[]>([]);
-  const [machines, setMachines] = useState<Machine[]>([]);
+  const [summary, setSummary] = useState<DashboardSummary | null>(null);
+  const [recent, setRecent] = useState<Transaction[]>([]);
+  const [recentTotal, setRecentTotal] = useState(0);
+  const [offset, setOffset] = useState(0);
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const load = () => {
-      Promise.all([
-        api.health().catch(() => null),
-        api.listLogs({ limit: 200 }).catch(() => null),
-        api.listModels().catch(() => null),
-        api.listMachines().catch(() => null),
-      ])
-        .then(([h, l, m, f]) => {
-          if (h) setHealth(h);
-          if (l) setLogs(l.items);
-          if (m) setModels(m);
-          if (f) setMachines(f.items);
-          if (!l) setError("Backend not reachable — is it running?");
-          else setError("");
-        });
+    let cancelled = false;
+    setLoading(true);
+    Promise.all([
+      api.dashboardSummary().catch(() => null),
+      api.listTransactions({ limit: PAGE, offset, sort: "start_time", dir: "desc" }).catch(() => null),
+    ])
+      .then(([s, t]) => {
+        if (cancelled) return;
+        if (s) setSummary(s);
+        else setError("Backend not reachable — is it running?");
+        if (t) {
+          setRecent(t.items);
+          setRecentTotal(t.total);
+        }
+        setLoading(false);
+      });
+    return () => {
+      cancelled = true;
     };
-    load();
-    const timer = setInterval(load, 5000);
-    return () => clearInterval(timer);
-  }, []);
-
-  const completed = logs.filter((l) => l.status === "COMPLETED").length;
-  const processing = logs.filter((l) =>
-    ["UPLOADED", "VALIDATING", "EXTRACTING", "IDENTIFYING", "PARSING"].includes(l.status),
-  ).length;
-  const failed = logs.filter((l) => l.status === "FAILED" || l.status === "PARTIAL").length;
-  const totalBytes = logs.reduce((acc, l) => acc + l.size_bytes, 0);
-
-  const bySource = new Map<string, number>();
-  for (const log of logs) {
-    const code = log.log_source?.code ?? "unknown";
-    bySource.set(code, (bySource.get(code) ?? 0) + 1);
-  }
+  }, [offset]);
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6 px-8 py-8">
-      <header>
-        <h1 className="text-2xl font-semibold text-white">Dashboard</h1>
-        <p className="mt-1 text-sm text-slate-400">
-          Foundation status — uploads, safe extraction, raw storage, parser & model registry.
-        </p>
+    <div className="mx-auto max-w-[1500px] px-6 py-6">
+      <header className="mb-5 flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold text-white">Operations Dashboard</h1>
+          <p className="mt-1 text-xs text-slate-500">
+            Aggregated from stored log evidence — findings reuse the rules-engine
+            classification. Counter semantics:{" "}
+            <Link className="text-indigo-400 hover:underline" to="/transactions">
+              browse transactions
+            </Link>
+          </p>
+        </div>
+        <span className="text-xs text-slate-500">
+          {summary ? `generated ${fmtTime(summary.generated_at)}` : ""}
+        </span>
       </header>
 
-      {error && (
-        <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-300">
-          {error}
-        </div>
-      )}
+      {error && <ErrorBox message={error} />}
 
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
-        <StatCard label="Uploads" value={logs.length} hint={`${formatSize(totalBytes)} stored`} />
-        <StatCard label="Completed" value={completed} accent="emerald" />
-        <StatCard label="Processing" value={processing} accent="amber" />
-        <StatCard label="Failed / partial" value={failed} accent="rose" />
-        <StatCard
-          label="Fleet"
-          value={machines.length}
-          hint={`${models.filter((m) => m.is_active).length}/${models.length} models active`}
-          accent="slate"
-        />
-      </div>
-
-      <div className="grid gap-6 lg:grid-cols-3">
-        <section className="lg:col-span-2 rounded-xl border border-slate-800 bg-slate-900/60">
-          <div className="flex items-center justify-between border-b border-slate-800 px-5 py-3.5">
-            <h2 className="text-sm font-semibold text-slate-200">Recent uploads</h2>
-            <Link to="/logs" className="text-xs text-indigo-400 hover:text-indigo-300">
-              View all →
-            </Link>
+      {loading && !summary ? (
+        <Spinner />
+      ) : summary ? (
+        <>
+          {/* Fleet */}
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-5">
+            <StatCard label="Total machines" value={summary.fleet.total} accent="indigo" />
+            <StatCard
+              label="Online"
+              value={summary.fleet.online}
+              accent="emerald"
+              hint={`activity within ${summary.fleet.window_hours}h`}
+            />
+            <StatCard
+              label="Offline"
+              value={summary.fleet.offline}
+              accent="slate"
+              hint="no recent logged activity"
+            />
+            <StatCard label="Transactions" value={summary.transactions.total} accent="indigo" />
+            <StatCard
+              label="Successful"
+              value={summary.transactions.completed}
+              accent="emerald"
+              hint="status COMPLETED"
+            />
           </div>
-          {logs.length === 0 ? (
-            <p className="px-5 py-8 text-center text-sm text-slate-500">
-              No uploads yet — head to <Link to="/logs" className="text-indigo-400">Logs</Link> to upload your first log file.
-            </p>
-          ) : (
-            <table className="w-full text-sm">
-              <tbody>
-                {logs.slice(0, 8).map((log) => (
-                  <tr key={log.id} className="border-b border-slate-800/60 last:border-0">
-                    <td className="max-w-0 px-5 py-2.5">
-                      <div className="truncate text-slate-200">{log.original_filename}</div>
-                      <div className="text-xs text-slate-500">
-                        {log.file_role === "extracted" ? `from ZIP · ${log.original_path}` : log.file_type}
-                        {log.line_count != null && ` · ${log.line_count} lines`}
-                      </div>
-                    </td>
-                    <td className="px-3 py-2.5 text-right text-xs text-slate-400">
-                      {new Date(log.created_at).toLocaleString()}
-                    </td>
-                    <td className="px-5 py-2.5 text-right">
-                      <StatusBadge status={log.status} />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </section>
-
-        <section className="space-y-6">
-          <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-5">
-            <h2 className="text-sm font-semibold text-slate-200">Detected sources</h2>
-            {bySource.size === 0 ? (
-              <p className="mt-3 text-xs text-slate-500">No sources detected yet.</p>
-            ) : (
-              <ul className="mt-3 space-y-2">
-                {[...bySource.entries()]
-                  .sort((a, b) => b[1] - a[1])
-                  .map(([code, count]) => (
-                    <li key={code} className="flex items-center justify-between text-sm">
-                      <span className="rounded bg-slate-800 px-2 py-0.5 font-mono text-xs text-slate-300">
-                        {code}
-                      </span>
-                      <span className="text-slate-400">{count}</span>
-                    </li>
-                  ))}
-              </ul>
-            )}
+          <div className="mt-4 grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-5">
+            <StatCard label="Failed" value={summary.transactions.failed} accent="rose" hint="status FAILED" />
+            <StatCard
+              label="Hardware errors"
+              value={summary.findings.hardware_errors}
+              accent="rose"
+              hint="machines w/ HARDWARE_FAILURE findings"
+            />
+            <StatCard
+              label="Possible jams"
+              value={summary.findings.possible_jams}
+              accent="amber"
+              hint="POSSIBLE_CASH_JAM rules"
+            />
+            <StatCard
+              label="Cash exceptions"
+              value={summary.findings.cash_exceptions}
+              accent="yellow"
+              hint="CASH_EXCEPTION findings"
+            />
+            <StatCard
+              label="Host failures"
+              value={summary.findings.host_failures}
+              accent="violet"
+              hint="HOST_FAILURE findings"
+            />
           </div>
 
-          <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-5">
-            <h2 className="text-sm font-semibold text-slate-200">System</h2>
-            <dl className="mt-3 space-y-1.5 text-sm">
-              <Row label="Backend" value={health ? health.status : "unreachable"} />
-              <Row label="Database" value={health?.database ? "connected" : "unknown"} />
-              <Row label="Queue" value={health?.queue ?? "—"} />
-              <Row label="Version" value={health?.version ?? "—"} />
-            </dl>
-          </div>
-        </section>
-      </div>
-    </div>
-  );
-}
+          <div className="mt-5 grid gap-5 xl:grid-cols-3">
+            {/* Model breakdown */}
+            <Card title="By machine model" subtitle="All integrated models flow through the same engine" className="xl:col-span-1">
+              {summary.models.length === 0 ? (
+                <Empty>No transactions analysed yet — upload logs below.</Empty>
+              ) : (
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-[11px] uppercase tracking-wide text-slate-500">
+                      <th className="pb-2">Model</th>
+                      <th className="pb-2 text-right">Txns</th>
+                      <th className="pb-2 text-right text-emerald-400">OK</th>
+                      <th className="pb-2 text-right text-rose-400">Fail</th>
+                      <th className="pb-2 text-right text-amber-400">Decl.</th>
+                      <th className="pb-2 text-right text-slate-400">Inc.</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {summary.models.map((m) => (
+                      <tr key={m.model_code} className="border-t border-slate-800/60">
+                        <td className="py-2">
+                          <Link
+                            className="font-medium text-indigo-300 hover:underline"
+                            to={`/transactions?model_code=${m.model_code}`}
+                          >
+                            {m.model_code}
+                          </Link>
+                        </td>
+                        <td className="py-2 text-right text-slate-300">{m.transactions}</td>
+                        <td className="py-2 text-right text-emerald-300">{m.completed}</td>
+                        <td className="py-2 text-right text-rose-300">{m.failed}</td>
+                        <td className="py-2 text-right text-amber-300">{m.declined}</td>
+                        <td className="py-2 text-right text-slate-400">{m.incomplete}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+              <p className="mt-3 text-[11px] leading-relaxed text-slate-600">
+                {summary.fleet.note}
+              </p>
+            </Card>
 
-function Row({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex justify-between">
-      <dt className="text-slate-500">{label}</dt>
-      <dd className="text-slate-300">{value}</dd>
+            {/* Recent transactions */}
+            <Card
+              title="Recent transactions"
+              subtitle={`${recentTotal} total — click to open the full analysis`}
+              className="xl:col-span-2"
+            >
+              {recent.length === 0 ? (
+                <Empty>No transactions yet.</Empty>
+              ) : (
+                <>
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[720px] text-sm">
+                      <thead>
+                        <tr className="text-left text-[11px] uppercase tracking-wide text-slate-500">
+                          <th className="pb-2">Transaction</th>
+                          <th className="pb-2">Model</th>
+                          <th className="pb-2">Started</th>
+                          <th className="pb-2 text-right">Amount</th>
+                          <th className="pb-2">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {recent.map((t) => (
+                          <tr key={t.id} className="border-t border-slate-800/60 hover:bg-slate-800/30">
+                            <td className="py-2">
+                              <Link
+                                className="font-mono text-indigo-300 hover:underline"
+                                to={`/transactions/${t.id}`}
+                              >
+                                {t.transaction_id}
+                              </Link>
+                            </td>
+                            <td className="py-2 text-slate-400">{t.model_code ?? "—"}</td>
+                            <td className="py-2 text-slate-400">{fmtTime(t.start_time)}</td>
+                            <td className="py-2 text-right text-slate-300">
+                              {fmtAmount(t.amount, t.currency)}
+                            </td>
+                            <td className="py-2">
+                              <Badge tone={statusTone(t.status)}>{t.status}</Badge>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <Pagination total={recentTotal} limit={PAGE} offset={offset} onPage={setOffset} />
+                </>
+              )}
+            </Card>
+          </div>
+
+          {/* Upload */}
+          <div className="mt-5">
+            <UploadDropzone onUploaded={() => setOffset(0)} />
+          </div>
+        </>
+      ) : null}
     </div>
   );
 }

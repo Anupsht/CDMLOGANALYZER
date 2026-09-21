@@ -2,6 +2,9 @@
 // server (and nginx in production) proxies them to the backend.
 
 import type {
+  DashboardSummary,
+  DiagnosticReport,
+  HardwareTimeline,
   Health,
   ListResponse,
   LogFile,
@@ -9,7 +12,11 @@ import type {
   LogFileStatus,
   LogLine,
   Machine,
+  MachineHealthMetrics,
   MachineModel,
+  TimelineOut,
+  Transaction,
+  TransactionDetail,
 } from "../types";
 
 const BASE = "/api";
@@ -68,6 +75,40 @@ function query(params: object): string {
   return s ? `?${s}` : "";
 }
 
+export interface TransactionsQuery {
+  model_code?: string;
+  machine_id?: string;
+  status?: string;
+  transaction_id?: string;
+  date_from?: string;
+  date_to?: string;
+  time_from?: string;
+  time_to?: string;
+  amount_min?: number | string;
+  amount_max?: number | string;
+  currency?: string;
+  host_result?: string;
+  cash_state?: string;
+  event_code?: string;
+  device?: string;
+  error_code?: string;
+  sort?: string;
+  dir?: string;
+  limit?: number;
+  offset?: number;
+}
+
+export interface LogLinesQuery {
+  q?: string;
+  level?: string;
+  line_from?: number;
+  line_to?: number;
+  ts_from?: string;
+  ts_to?: string;
+  limit?: number;
+  offset?: number;
+}
+
 export const api = {
   health: () => request<Health>("/health"),
 
@@ -78,8 +119,8 @@ export const api = {
 
   getLogStatus: (id: string) => request<LogFileStatus>(`/logs/${id}/status`),
 
-  getLogLines: (id: string, limit = 100, offset = 0) =>
-    request<ListResponse<LogLine>>(`/logs/${id}/lines${query({ limit, offset })}`),
+  getLogLines: (id: string, q: LogLinesQuery = {}) =>
+    request<ListResponse<LogLine>>(`/logs/${id}/lines${query(q)}`),
 
   // ---- models -------------------------------------------------------------
 
@@ -89,6 +130,30 @@ export const api = {
     request<{ model_code: string; enabled: boolean }>(
       `/models/${code}/${enabled ? "enable" : "disable"}`,
       { method: "POST" },
+    ),
+
+  // ---- transactions (universal — every model) -------------------------------
+
+  listTransactions: (q: TransactionsQuery = {}) =>
+    request<ListResponse<Transaction>>(`/transactions${query(q)}`),
+
+  getTransaction: (id: string) => request<TransactionDetail>(`/transactions/${id}`),
+
+  getTransactionTimeline: (id: string) => request<TimelineOut>(`/transactions/${id}/timeline`),
+
+  getTransactionHardware: (id: string) => request<HardwareTimeline>(`/transactions/${id}/hardware`),
+
+  getTransactionDiagnostics: (id: string) =>
+    request<DiagnosticReport>(`/transactions/${id}/diagnostics`),
+
+  // ---- dashboard / health (Phase 7) ------------------------------------------
+
+  dashboardSummary: (q: { machine_id?: string; model_code?: string; date_from?: string; date_to?: string } = {}) =>
+    request<DashboardSummary>(`/dashboard/summary${query(q)}`),
+
+  machineHealth: (machineId: string, windowDays = 30) =>
+    request<MachineHealthMetrics>(
+      `/machines/${machineId}/health${query({ window_days: windowDays })}`,
     ),
 
   // ---- machines -------------------------------------------------------------
