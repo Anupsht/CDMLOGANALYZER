@@ -29,6 +29,29 @@ zero model branches.
 
 See `docs/technician-dashboard.md` for the page-by-page reference.
 
+## AI explanations & vendor reporting (Phase 8)
+
+The deterministic analysis is never replaced — an **explanation layer**
+(`backend/app/ai/`) composes per-transaction explanations from the
+rules-engine results, optionally through an external OpenAI-compatible LLM
+(`CDM_AI_BASE_URL`/`CDM_AI_API_KEY`; off by default, the deterministic
+composer is used and labelled as such).
+
+- Structured, bounded **AI digest** (never raw log files):
+  `GET /api/transactions/{id}/ai-digest`
+- Validated **explanation** with the epistemic labels CONFIRMED / PROBABLE /
+  POSSIBLE / UNKNOWN and an anti-invention guard (unverified codes, serials
+  and denominations are stripped and logged):
+  `POST /api/transactions/{id}/ai-explanation`
+- **Vendor escalation report** with full evidence traceability:
+  `GET /api/transactions/{id}/vendor-report`
+- Professional **PDF** (`…/report.pdf`, reportlab) and structured **Excel**
+  (`…/report.xlsx`, openpyxl: Transaction Summary / Events / Cash Trace /
+  Hardware Events / Errors / Analysis).
+
+See `docs/ai-explanations.md`. In the UI: Transaction Details → **Vendor
+Report** → Generate explanation → Export PDF / Export Excel.
+
 > **Phase 1 — Foundation.** This repository currently implements the platform
 > foundation: upload pipeline, safe ZIP extraction, immutable raw log storage,
 > a parser framework, a model/plugin adapter architecture, MySQL persistence,
@@ -121,7 +144,7 @@ backend/               FastAPI application
     tasks/             queue abstraction: Celery (Redis) or inline
     analysis/ rules/   reserved for Phase 2+ (empty by design)
   alembic/             migrations
-  tests/               pytest suite (180 tests) + synthetic fixtures
+  tests/               pytest suite (189 tests) + synthetic fixtures
 frontend/              React + TypeScript + Tailwind technician dashboard
 config/                per-model YAML packages (config/models/<code>/)
 docker/                Dockerfiles + nginx config

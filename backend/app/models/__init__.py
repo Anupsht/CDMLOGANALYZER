@@ -26,6 +26,7 @@ from app.models.hardware import (
     SensorEvent,
     TransportEvent,
 )
+from app.models.ai import AIExplanation
 from app.models.diagnostics import DiagnosticFinding
 
 __all__ = [
@@ -48,4 +49,5 @@ __all__ = [
     "TransportEvent",
     "FaultAssessment",
     "DiagnosticFinding",
+    "AIExplanation",
 ]

@@ -15,6 +15,7 @@ import type {
 } from "../types";
 import TransactionTimeline from "../components/TransactionTimeline";
 import CashTrace from "../components/CashTrace";
+import VendorReportSection from "../components/VendorReportSection";
 import {
   Badge,
   CASH_CLASS_TONE,
@@ -45,6 +46,7 @@ const SECTIONS = [
   ["analysis", "Analysis"],
   ["evidence", "Evidence"],
   ["recommendations", "Recommendations"],
+  ["vendor", "Vendor Report"],
 ] as const;
 
 interface AllData {
@@ -342,6 +344,11 @@ export default function TransactionDetail() {
           >
             <Recommendations report={report} />
           </Card>
+        </section>
+
+        {/* 13. Vendor Report & Export (Phase 8) */}
+        <section id="sec-vendor" className="scroll-mt-14">
+          <VendorReportSection detail={detail} hw={hw} report={report} />
         </section>
       </div>
     </div>

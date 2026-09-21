@@ -54,6 +54,15 @@ class Settings(BaseSettings):
     max_extract_files: int = 500  # max files per ZIP
     allowed_upload_extensions: str = ".txt,.log,.csv,.json,.zip"
 
+    # ---- AI explanation layer (Phase 8) ----
+    # Optional OpenAI-compatible chat-completions endpoint used ONLY as an
+    # explanation layer on top of the deterministic rules engine. Empty
+    # base_url = no external AI; the deterministic composer is used instead.
+    ai_base_url: str = ""
+    ai_api_key: str = ""
+    ai_model: str = ""
+    ai_timeout_seconds: int = 20
+
     # ---- Model configuration ----
     # Directory containing per-model YAML packages (config/models/<code>/).
     # Empty = auto-discovered relative to the repository root.

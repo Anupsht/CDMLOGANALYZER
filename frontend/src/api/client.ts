@@ -2,6 +2,7 @@
 // server (and nginx in production) proxies them to the backend.
 
 import type {
+  AIExplanation,
   DashboardSummary,
   DiagnosticReport,
   HardwareTimeline,
@@ -145,6 +146,18 @@ export const api = {
 
   getTransactionDiagnostics: (id: string) =>
     request<DiagnosticReport>(`/transactions/${id}/diagnostics`),
+
+  // ---- AI explanation & vendor reporting (Phase 8) ---------------------------
+
+  getAIExplanation: (id: string) =>
+    request<AIExplanation>(`/transactions/${id}/ai-explanation`),
+
+  generateAIExplanation: (id: string) =>
+    request<AIExplanation>(`/transactions/${id}/ai-explanation`, { method: "POST" }),
+
+  reportPdfUrl: (id: string) => `${BASE}/transactions/${id}/report.pdf`,
+
+  reportXlsxUrl: (id: string) => `${BASE}/transactions/${id}/report.xlsx`,
 
   // ---- dashboard / health (Phase 7) ------------------------------------------
 

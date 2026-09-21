@@ -415,3 +415,49 @@ export interface MachineHealthMetrics {
   last_activity_at?: string | null;
   note: string;
 }
+
+// ---------------------------------------------------------------------------
+// Phase 8 — AI explanation & vendor reporting
+// ---------------------------------------------------------------------------
+
+export type EpistemicLabel = "CONFIRMED" | "PROBABLE" | "POSSIBLE" | "UNKNOWN";
+
+export interface ExplanationClaim {
+  statement: string;
+  label: EpistemicLabel;
+  evidence_ids: string[];
+}
+
+export interface AIExplanationPayload {
+  technical_summary: string;
+  root_cause: ExplanationClaim & { basis?: string };
+  confidence: { label: EpistemicLabel; rationale: string };
+  possible_causes: ExplanationClaim[];
+  recommended_actions: string[];
+  vendor_questions: string[];
+  evidence: { id: string; file: string; file_id?: string | null; line_number: number; raw_excerpt: string }[];
+  caveats: string[];
+  labels: {
+    vocabulary: EpistemicLabel[];
+    legend: Record<EpistemicLabel, string>;
+  };
+}
+
+export interface AIExplanation {
+  id: string;
+  transaction_id: string;
+  provider: string;
+  generator: string;
+  model_name?: string | null;
+  digest_sha256: string;
+  created_at?: string | null;
+  payload: AIExplanationPayload;
+  safety_notes?: string[] | null;
+}
+
+export const LABEL_TONE: Record<EpistemicLabel, string> = {
+  CONFIRMED: "rose",
+  PROBABLE: "amber",
+  POSSIBLE: "sky",
+  UNKNOWN: "slate",
+};
