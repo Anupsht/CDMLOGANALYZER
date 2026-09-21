@@ -8,6 +8,7 @@ import { Spinner } from "./components/ui";
 const Transactions = lazy(() => import("./pages/Transactions"));
 const TransactionDetail = lazy(() => import("./pages/TransactionDetail"));
 const MachineHealth = lazy(() => import("./pages/MachineHealth"));
+const Analytics = lazy(() => import("./pages/Analytics"));
 const LogViewer = lazy(() => import("./pages/LogViewer"));
 const Logs = lazy(() => import("./pages/Logs"));
 const Models = lazy(() => import("./pages/Models"));
@@ -39,6 +40,14 @@ export default function App() {
           element={
             <Suspense fallback={<Spinner />}>
               <MachineHealth />
+            </Suspense>
+          }
+        />
+        <Route
+          path="/analytics"
+          element={
+            <Suspense fallback={<Spinner />}>
+              <Analytics />
             </Suspense>
           }
         />

@@ -10,6 +10,11 @@
 
 # Phase 6: model detection corroboration (see adapters/base.py detect).
 detection:
+  # Analytics extracts firmware/software versions with these patterns
+  # (single capture group). SYNTHETIC — pending real vendor formats.
+  version_patterns:
+    - 'eCAT application started, version ([0-9][A-Za-z0-9._-]*)'
+    - 'CIM30 firmware ([0-9][A-Za-z0-9._-]*)'
   software_identifiers:
     - 'eCAT application started'
     - 'CIM30'

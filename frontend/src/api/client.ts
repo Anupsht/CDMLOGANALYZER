@@ -3,6 +3,14 @@
 
 import type {
   AIExplanation,
+  AnalyticsOverview,
+  CrossMachineOut,
+  ErrorStat,
+  InsightsOut,
+  MaintenanceOut,
+  PatternDetection,
+  RuleSuggestion,
+  TrendsOut,
   DashboardSummary,
   DiagnosticReport,
   HardwareTimeline,
@@ -168,6 +176,61 @@ export const api = {
     request<MachineHealthMetrics>(
       `/machines/${machineId}/health${query({ window_days: windowDays })}`,
     ),
+
+  // ---- analytics (Phase 9) ---------------------------------------------------
+
+  analyticsOverview: (windowDays = 90) =>
+    request<AnalyticsOverview>(`/analytics/overview${query({ window_days: windowDays })}`),
+
+  analyticsTrends: (bucket: string, windowDays = 90) =>
+    request<TrendsOut>(`/analytics/trends${query({ bucket, window_days: windowDays })}`),
+
+  analyticsErrors: (windowDays = 90) =>
+    request<{ window_days: number; errors: ErrorStat[]; note: string }>(
+      `/analytics/errors${query({ window_days: windowDays })}`,
+    ),
+
+  analyticsPatterns: (windowDays = 90) =>
+    request<{ window_days: number; patterns: PatternDetection[]; note: string }>(
+      `/analytics/patterns${query({ window_days: windowDays })}`,
+    ),
+
+  analyticsCrossMachine: (windowDays = 90) =>
+    request<CrossMachineOut>(`/analytics/cross-machine${query({ window_days: windowDays })}`),
+
+  analyticsMaintenance: (recentDays = 7, baselineDays = 30) =>
+    request<MaintenanceOut>(
+      `/analytics/maintenance${query({ recent_days: recentDays, baseline_days: baselineDays })}`,
+    ),
+
+  analyticsInsights: (windowDays = 90) =>
+    request<InsightsOut>(`/analytics/insights${query({ window_days: windowDays })}`),
+
+  listRuleSuggestions: (status?: string) =>
+    request<RuleSuggestion[]>(`/analytics/rule-suggestions${query({ status })}`),
+
+  createRuleSuggestion: (payload: {
+    title: string;
+    pattern_type: string;
+    rationale?: string;
+    pattern_stats?: Record<string, unknown>;
+    draft_rule?: Record<string, unknown>;
+  }) =>
+    request<RuleSuggestion>("/analytics/rule-suggestions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }),
+
+  reviewRuleSuggestion: (
+    id: string,
+    payload: { status: string; reviewed_by?: string; review_note?: string },
+  ) =>
+    request<RuleSuggestion>(`/analytics/rule-suggestions/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }),
 
   // ---- machines -------------------------------------------------------------
 

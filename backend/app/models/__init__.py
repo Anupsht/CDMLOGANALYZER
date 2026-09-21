@@ -28,6 +28,7 @@ from app.models.hardware import (
 )
 from app.models.ai import AIExplanation
 from app.models.diagnostics import DiagnosticFinding
+from app.models.rule_suggestion import RuleSuggestion
 
 __all__ = [
     "User",

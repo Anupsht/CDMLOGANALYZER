@@ -62,6 +62,40 @@ Report** → Generate explanation → Export PDF / Export Excel.
 
 ---
 
+## Analytics, patterns & maintenance insights (Phase 9)
+
+Historical analytics over everything already stored — transactions, failures,
+errors, jams, sensor faults, cash exceptions, host failures, device-unavailable
+events and automatic resets — plus cross-machine comparison and an advisory
+pattern detector. **No new parsing**: everything aggregates the existing
+evidence tables (`backend/app/services/analytics_service.py`,
+`GET /api/analytics/*`).
+
+- **Trends** per day/week/month (transactions, failures, jams, errors),
+  `GET /api/analytics/trends?bucket=daily|weekly|monthly&window_days=90`
+- **Error analytics**: occurrence counts, affected machines/models, first/last
+  occurrence and the common preceding/following events per error code
+- **Cross-machine comparison**: by machine, location, model and detected
+  software/firmware version (`detection.version_patterns` per model config)
+- **Maintenance insights**: machines whose jam / hardware-error / failure /
+  sensor-abnormality rate is *increasing* are flagged WATCH / WARNING /
+  HIGH_RISK vs a baseline window. These are **triage heuristics only** — the
+  system never declares a component failed from them
+- **Direct answers** (`GET /api/analytics/insights`): which machines have the
+  most problems, which errors are increasing, which model has the highest
+  failure rate, which faults commonly precede transaction failure, and which
+  machines to investigate first
+- **Pattern → Suggested Rule → Human Review → Approval → Production.** The
+  detector proposes drafts only (`SUGGESTED_*`, `requires_human_review: true`,
+  never auto-loaded); filing, reviewing, approving and rejecting happen through
+  `GET/POST/PATCH /api/analytics/rule-suggestions` with a mandatory reviewer
+  name, an audit trail, and engine isolation (approved drafts still only become
+  production rules when a human copies them into the YAML package)
+
+In the UI: **Analytics** page — key-question insights, trend charts, model
+comparison, machine ranking, error frequency with event neighbours, jam trends,
+maintenance flags and the rule-suggestion review workflow.
+
 ## Quick start (Docker Compose)
 
 ```bash
@@ -198,6 +232,12 @@ Tests are self-contained (temporary SQLite + eager queue) — no MySQL/Redis nee
 
 | Phase | Scope | Status |
 |---|---|---|
-| 1 | Foundation (this repo) | ✅ done |
-| 2 | Full P2600N/P2800N parsers, transaction & event models, correlation | planned |
-| 3+ | Fault/cash-jam diagnosis, rules engine, AI analysis, reporting | planned |
+| 1 | Foundation: upload pipeline, parser framework, adapters, persistence, dashboard | ✅ done |
+| 2 | Full P2600N/P2800N/P2600L parsers, transaction & event models, correlation | ✅ done |
+| 3 | Fault diagnosis & cash-jam analysis (evidence-based, hedged) | ✅ done |
+| 4 | Universal rules engine + per-model YAML overlays | ✅ done |
+| 5 | Model packages as data (config/models/<model>/*.yaml) | ✅ done |
+| 6 | Machine health scoring & history | ✅ done |
+| 7 | Technician dashboard (transactions, timeline, health, audit) | ✅ done |
+| 8 | AI explanations & vendor reporting (explanation layer only) | ✅ done |
+| 9 | Historical analytics, pattern detection, cross-machine analysis, maintenance insights, rule suggestions | ✅ done |

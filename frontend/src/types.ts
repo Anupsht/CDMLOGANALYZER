@@ -461,3 +461,142 @@ export const LABEL_TONE: Record<EpistemicLabel, string> = {
   POSSIBLE: "sky",
   UNKNOWN: "slate",
 };
+
+// ---------------------------------------------------------------------------
+// Phase 9 — analytics, patterns, cross-machine, maintenance
+// ---------------------------------------------------------------------------
+
+export interface TrendPoint {
+  bucket: string;
+  transactions: number;
+  failures: number;
+  jams: number;
+  errors: number;
+}
+
+export interface TrendsOut {
+  bucket: string;
+  window_days: number;
+  points: TrendPoint[];
+  note: string;
+}
+
+export interface AnalyticsOverview {
+  window_days: number;
+  transactions: { total: number; completed: number; failed: number; failed_status_only: number; declined: number; incomplete: number };
+  failures: number;
+  errors: number;
+  jams: number;
+  sensor_faults: number;
+  cash_exceptions: number;
+  host_failures: number;
+  hardware_errors: number;
+  device_unavailable_events: number;
+  automatic_resets: number;
+}
+
+export interface ErrorStat {
+  error_code: string;
+  event_code: string;
+  occurrence_count: number;
+  machines_affected: number;
+  models_affected: string[];
+  first_occurrence?: string | null;
+  last_occurrence?: string | null;
+  common_preceding_events: { event: string; count: number }[];
+  common_following_events: { event: string; count: number }[];
+  sample_transaction_ids: string[];
+}
+
+export interface PatternDetection {
+  pattern_type: string;
+  description: string;
+  stats: Record<string, unknown>;
+  confidence: "CONFIRMED" | "PROBABLE" | "POSSIBLE" | "UNKNOWN";
+  rule_suggestion_draft: {
+    draft_kind: string;
+    draft_description: string;
+    requires_human_review: boolean;
+    production_note: string;
+    draft_rule: Record<string, unknown> & { id: string };
+  };
+}
+
+export interface CrossMachineMachine {
+  machine_id: string;
+  serial_number?: string | null;
+  location?: string | null;
+  model_code?: string | null;
+  software_versions: string[];
+  transactions: number;
+  failures: number;
+  failure_rate: number;
+  top_rules: { rule_id: string; count: number }[];
+}
+
+export interface CrossMachineOut {
+  window_days: number;
+  machines: CrossMachineMachine[];
+  by_location: { location: string; machines: number; transactions: number; failures: number; failure_rate: number }[];
+  by_model: { model_code: string; machines: number; transactions: number; failures: number; failure_rate: number }[];
+  by_software_version: { software_versions: string; machines: number; transactions: number; failures: number; failure_rate: number }[];
+  note: string;
+}
+
+export type MaintenanceFlag = "WATCH" | "WARNING" | "HIGH_RISK";
+
+export interface MaintenanceMachine {
+  machine_id: string;
+  serial_number: string;
+  name?: string | null;
+  location?: string | null;
+  model_code?: string | null;
+  baseline_days: number;
+  recent_days: number;
+  baseline_transactions: number;
+  recent_transactions: number;
+  metrics: Record<
+    string,
+    { baseline: number; recent: number; ratio: number | null; flag: MaintenanceFlag }
+  >;
+  overall_flag: MaintenanceFlag;
+}
+
+export interface MaintenanceOut {
+  recent_days: number;
+  baseline_days: number;
+  machines: MaintenanceMachine[];
+  thresholds: Record<string, number>;
+  note: string;
+}
+
+export interface InsightsOut {
+  window_days: number;
+  machines_with_most_problems: { machine_id: string; failures: number; model_code?: string | null }[];
+  errors_increasing: { error_code: string; first_half: number; second_half: number }[];
+  model_highest_failure_rate: { model_code: string; failure_rate: number } | null;
+  faults_preceding_failure: { event: string; count: number }[];
+  machines_to_investigate_first: string[];
+  note: string;
+}
+
+export interface RuleSuggestion {
+  id: string;
+  title: string;
+  pattern_type: string;
+  rationale?: string | null;
+  pattern_stats?: Record<string, unknown> | null;
+  draft_rule?: Record<string, unknown> | null;
+  status: "SUGGESTED" | "UNDER_REVIEW" | "APPROVED" | "REJECTED" | "INCORPORATED";
+  reviewed_by?: string | null;
+  review_note?: string | null;
+  source_transaction_id?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export const FLAG_TONE: Record<MaintenanceFlag, string> = {
+  WATCH: "sky",
+  WARNING: "amber",
+  HIGH_RISK: "rose",
+};
