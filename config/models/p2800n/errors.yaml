@@ -1,0 +1,29 @@
+# =============================================================================
+# P2800N error-code patterns
+# =============================================================================
+# ⚠️ SYNTHETIC codes — the real P2800N error catalogue is not yet available.
+# Result codes rc=xx in IFM responses are captured verbatim; everything not
+# confidently interpretable stays UNKNOWN on purpose.
+# =============================================================================
+
+app:
+  - pattern: '\|ERR\|ERR\|([0-9A-Za-z_-]+)'
+    code: P28APP-$1
+    severity: ERROR
+    description: P2800N application error (code captured from line).
+
+ifm:
+  - pattern: '\bRSP\b.*rc=([0-9A-Fx]+)'
+    code: P28IFM-$1
+    severity: INFO
+    description: IFM result code (interpretation pending vendor table).
+
+siu:
+  - pattern: 'fault'
+    code: UNK-SIU-FAULT
+    severity: ERROR
+
+default:
+  - pattern: '\bCRITICAL\b'
+    code: UNK-CRITICAL
+    severity: CRITICAL

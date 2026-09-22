@@ -1,0 +1,23 @@
+# =============================================================================
+# P2600N device-name patterns
+# =============================================================================
+# Used to label the 'device' of a normalized event when the parser line
+# format does not carry a device group. ⚠️ SYNTHETIC names pending real docs.
+# =============================================================================
+patterns:
+  - pattern: '(?i)\bcim30?\b'
+    device: CIM30
+  - pattern: '(?i)\bkeeper\b'
+    device: Keeper
+  - pattern: '(?i)\becat\b'
+    device: eCAT
+  - pattern: '(?i)\bsensor\s+(\S+)'
+    device: CIM30-sensor
+  - pattern: '(?i)\bcassette\s*([0-9]+)'
+    device: Cassette-$1
+  - pattern: '(?i)\bescrow\b'
+    device: Escrow
+  - pattern: '(?i)grgca10dev'
+    device: HostInterface
+  - pattern: '(?i)receiptprinter'
+    device: ReceiptPrinter

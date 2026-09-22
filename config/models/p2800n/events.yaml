@@ -1,0 +1,102 @@
+# =============================================================================
+# P2800N message patterns → universal event codes
+# =============================================================================
+# ⚠️ SYNTHETIC patterns (see model.yaml). Same universal vocabulary as
+# P2600N — that identity is the point of Phase 3.
+# =============================================================================
+
+app:
+  # ---- Phase 4 hardware codes (must precede generic patterns) ----
+  - pattern: 'JAM\|CLEARED'
+    event: JAM_CLEARED
+  - pattern: '\|JAM\|'
+    event: JAM_DETECTED
+    severity: WARNING
+  - pattern: 'TRANSPORT\|TIMEOUT'
+    event: TRANSPORT_TIMEOUT
+    severity: WARNING
+  - pattern: 'MOTOR\|TRANSPORT\|START'
+    event: TRANSPORT_STARTED
+  - pattern: 'MOTOR\|TRANSPORT\|STOP'
+    event: TRANSPORT_STOPPED
+  - pattern: 'MOTOR\|[A-Z0-9_]+\|START'
+    event: MOTOR_STARTED
+    severity: DEBUG
+  - pattern: 'MOTOR\|[A-Z0-9_]+\|STOP'
+    event: MOTOR_STOPPED
+    severity: DEBUG
+  - pattern: 'SENS\|[A-Z0-9_]+\|'
+    event: SENSOR_CHANGED
+    severity: DEBUG
+  - pattern: 'GATE\|[A-Z0-9_]+\|CMD\|'
+    event: GATE_COMMANDED
+  - pattern: 'GATE\|[A-Z0-9_]+\|POS\|'
+    event: GATE_POSITION
+    severity: DEBUG
+  - pattern: 'SHTR\|[A-Z0-9_]+\|CMD\|'
+    event: SHUTTER_COMMANDED
+  - pattern: 'SHTR\|[A-Z0-9_]+\|POS\|'
+    event: SHUTTER_POSITION
+    severity: DEBUG
+  - pattern: 'ESCROW_HOLD'
+    event: CASH_ESCROWED
+  - pattern: 'TRX\|\s*OPEN'
+    event: TRANSACTION_STARTED
+  - pattern: 'TRX\|\s*CLOSE\|\s*OK'
+    event: TRANSACTION_COMPLETED
+  - pattern: 'TRX\|\s*CLOSE\|\s*(?:FAIL|ERR)'
+    event: TRANSACTION_FAILED
+    severity: ERROR
+  - pattern: 'ESCROW_IN'
+    event: CASH_ACCEPTED
+  - pattern: 'NOTES_COUNTED'
+    event: CASH_COUNTING_COMPLETED
+  - pattern: 'NOTES_VALID'
+    event: VALIDATION_PASSED
+  - pattern: 'NOTES_INVALID|COUNTERFEIT'
+    event: VALIDATION_FAILED
+    severity: WARNING
+  - pattern: 'NOTES_TO_BIN|NOTES_REJECT'
+    event: CASH_REJECTED
+    severity: WARNING
+  - pattern: 'NOTES_RETURNED|ESCROW_OUT'
+    event: CASH_RETURNED
+  - pattern: 'NOTES_STORED|CASSETTE_MOV'
+    event: CASH_STORED
+  - pattern: 'MOTOR\s+START'
+    event: MOTOR_STARTED
+    severity: DEBUG
+  - pattern: 'MOTOR\s+STOP'
+    event: MOTOR_STOPPED
+    severity: DEBUG
+
+siu:
+  - pattern: 'device_unavailable|offline'
+    event: DEVICE_UNAVAILABLE
+    severity: WARNING
+  - pattern: 'sensor_mask[=:]'
+    event: SENSOR_CHANGED
+    severity: DEBUG
+
+jrn:
+  - pattern: '\|OK$'
+    event: CASH_STORED
+  - pattern: '\|(?:NOK|FAIL)$'
+    event: TRANSACTION_FAILED
+    severity: ERROR
+  - pattern: '\|CANCEL'
+    event: CASH_RETURNED
+    severity: WARNING
+
+ifm:
+  - pattern: '\bREQ\b'
+    event: HOST_REQUEST
+  - pattern: '\bRSP\b.*rc=00'
+    event: HOST_RESPONSE
+  - pattern: '\bRSP\b.*rc=(41|42|43)'
+    event: HOST_DECLINED
+    severity: WARNING
+    error_code: 'P28IFM-$1'
+    error_description: IFM result code (interpretation pending vendor table).
+
+default: []

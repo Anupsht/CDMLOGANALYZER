@@ -1,0 +1,76 @@
+# =============================================================================
+# P2800N hardware / cash-flow extraction (Phase 4)
+# =============================================================================
+# ⚠️ SYNTHETIC patterns — P2800N hardware log formats are not confirmed.
+# Everything here (patterns, motor names, timeouts, windows, jam
+# indications) is model *data*: the universal engine
+# (backend/app/analysis/hardware.py) contains no model-specific logic.
+# Replace with real evidence via this file only.
+# =============================================================================
+
+sensors:
+  # <ts>|APP|INFO|SENS|<name>|<prev>-><new>|tid=...
+  - pattern: 'SENS\|(?P<name>[A-Z0-9_]+)\|(?P<previous>[A-Za-z0-9_]+)->(?P<new>[A-Za-z0-9_]+)'
+
+motors:
+  - name: motor
+    start_pattern: 'MOTOR\|(?P<name>[A-Z0-9_]+)\|START'
+    stop_pattern: 'MOTOR\|(?P<name>[A-Z0-9_]+)\|STOP'
+    timeout_ms: 8000
+
+gates:
+  command_pattern: 'GATE\|(?P<name>[A-Z0-9_]+)\|CMD\|(?P<command>[A-Z]+)'
+  position_pattern: 'GATE\|(?P<name>[A-Z0-9_]+)\|POS\|(?P<state>[A-Z]+)'
+  transition_timeout_ms: 5000
+  expected_state_map:
+    OPEN: OPEN
+    CLOSE: CLOSED
+
+shutters:
+  command_pattern: 'SHTR\|(?P<name>[A-Z0-9_]+)\|CMD\|(?P<command>[A-Z]+)'
+  position_pattern: 'SHTR\|(?P<name>[A-Z0-9_]+)\|POS\|(?P<state>[A-Z]+)'
+  transition_timeout_ms: 5000
+  expected_state_map:
+    OPEN: OPEN
+    CLOSE: CLOSED
+
+transport:
+  # The transport motor is identified by its name token in the APP log.
+  motor_names: [TRANSPORT]
+  timeout_ms: 10000
+  sensors:
+    - sensor: GATE_MAIN
+      expected: OPEN
+      blocked: [CLOSED]
+
+# Temporal correlation around a suspected fault (spec: before 30s / after 60s,
+# configurable per model/device).
+temporal_analysis:
+  before_seconds: 30
+  after_seconds: 60
+  per_device:
+    TRANSPORT:
+      before_seconds: 45
+      after_seconds: 90
+
+# What counts as an explicit jam indication. A single indication alone is
+# NEVER a confirmed jam — see app/analysis/hardware.py classification rules.
+jam_indications:
+  patterns:
+    - 'JAM\|(?!CLEARED)'   # |JAM|TRANSPORT … but not |JAM|CLEARED
+  events: [JAM_DETECTED]
+
+cash:
+  # Note-level metadata — extracted only where the log carries it;
+  # missing fields stay "UNKNOWN" (never invented).
+  notes:
+    - key: denomination
+      pattern: 'denom[=:]([0-9]+)'
+      type: int
+    - key: serial
+      pattern: 'serial[=:]([A-Za-z0-9]+)'
+      type: str
+    - key: position
+      pattern: 'pos[=:]([A-Za-z0-9]+)'
+      type: str
+  lifecycle_overrides: {}

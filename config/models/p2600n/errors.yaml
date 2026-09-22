@@ -1,0 +1,40 @@
+# =============================================================================
+# P2600N error-code patterns (per source, plus model-level default)
+# =============================================================================
+# ⚠️ SYNTHETIC codes (see model.yaml). The vendor error catalogue is NOT yet
+# available; codes below are placeholders named UNK-* and must be replaced
+# with the real P2600N error table when documentation arrives.
+# =============================================================================
+
+ecat:
+  - pattern: 'ERROR\s+(EC-[0-9]+)'
+    code: ECAT-$1        # real eCAT error code captured from the line
+    severity: ERROR
+    description: eCAT application error (code captured from log line).
+  - pattern: 'FATAL'
+    code: ECAT-FATAL
+    severity: CRITICAL
+
+cim:
+  - pattern: 'error\s+(EC-[0-9]+)'
+    code: CIM-$1
+    severity: ERROR
+    description: CIM30 module error (code captured from log line).
+  - pattern: 'jam'
+    code: UNK-CIM-JAM    # UNKNOWN: jam semantics belong to a later phase
+    severity: ERROR
+
+keeper:
+  - pattern: 'error\s+(EC-[0-9]+)'
+    code: KEEPER-$1
+    severity: ERROR
+
+host:
+  - pattern: 'RC=([0-9A-Fx]+).*ERROR'
+    code: HOST-$1
+    severity: ERROR
+
+default:
+  - pattern: '\bCRITICAL\b'
+    code: UNK-CRITICAL
+    severity: CRITICAL

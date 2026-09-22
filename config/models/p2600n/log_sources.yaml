@@ -1,0 +1,132 @@
+# =============================================================================
+# P2600N log sources & parser definitions (data-driven)
+# =============================================================================
+# Sources below mirror the *provided export file inventory*:
+#   eCAT20260703.txt, CIM30_2026-07-03.txt, Keeper20260703.txt,
+#   JOU20260703.txt, NoteInfo_*.csv, ReceiptPrinter_2026-07-03.txt,
+#   GRGCA10DEV(2026-07-03).log
+# Line patterns are SYNTHETIC templates (see model.yaml warning).
+# =============================================================================
+# Parser config fields:
+#   type: line | csv
+#   line_pattern: regex with named groups ts / device / level / msg
+#                 (extra named groups → normalized['fields'])
+#   timestamp_format: strptime format for the 'ts' group
+#   filename_patterns / extensions / content_signatures: can_parse hints
+#   key_extract: per-source correlation key rules (tried before model-level)
+
+ecat:
+  name: eCAT application log
+  description: Main P2600N application log (transaction flow, sessions).
+  filename_patterns: ['(?i)\becat\b']
+  parser:
+    code: p2600n_ecat
+    type: line
+    extensions: [txt, log]
+    content_signatures: ['\[eCAT\]']
+    line_pattern: '^(?P<ts>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3}) \[(?P<device>[^\]]+)\] (?P<level>[A-Z]+)\s+(?P<msg>.*)$'
+    timestamp_format: '%Y-%m-%d %H:%M:%S.%f'
+  key_extract:
+    - key: txn_id
+      pattern: 'TXN[=:]\s*([A-Za-z0-9_-]+)'
+
+cim:
+  name: CIM30 cash module log
+  description: Dispensing module states, motors, sensors, escrow.
+  filename_patterns: ['(?i)\bcim']
+  parser:
+    code: p2600n_cim
+    type: line
+    extensions: [txt, log]
+    content_signatures: ['CIM30:']
+    line_pattern: '^(?P<ts>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) CIM30:\s+(?P<msg>.*)$'
+    timestamp_format: '%Y-%m-%d %H:%M:%S'
+  key_extract:
+    - key: txn_id
+      pattern: 'TXN[=:]\s*([A-Za-z0-9_-]+)'
+
+keeper:
+  name: Keeper module log
+  description: Keeper device events (locks, presentation).
+  filename_patterns: ['(?i)\bkeeper\b']
+  parser:
+    code: p2600n_keeper
+    type: line
+    extensions: [txt, log]
+    content_signatures: ['Keeper:']
+    line_pattern: '^(?P<ts>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) Keeper:\s+(?P<msg>.*)$'
+    timestamp_format: '%Y-%m-%d %H:%M:%S'
+
+jou:
+  name: JOU journal log
+  description: Transaction journal with sequence numbers and amounts.
+  filename_patterns: ['(?i)\bjou\b', '(?i)\bjournal\b']
+  parser:
+    code: p2600n_jou
+    type: line
+    extensions: [txt, log, jou]
+    content_signatures: ['\|[A-Z_]+\|[0-9]+\.[0-9]{2}\|[A-Z]{3}\|']
+    line_pattern: '^(?P<seq>\d{4})\|(?P<ts>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\|(?P<txn>[A-Za-z0-9_-]+)\|(?P<op>[A-Z_]+)\|(?P<amount>[0-9.]+)\|(?P<currency>[A-Z]{3})\|(?P<status>[A-Z_]+)$'
+    timestamp_format: '%Y-%m-%d %H:%M:%S'
+  key_extract:
+    - key: journal_seq
+      pattern: '^(\d{4})\|'
+      type: int
+    - key: txn_id
+      pattern: '\|([A-Za-z0-9_-]{10,})\|'
+    - key: amount
+      pattern: '\|([0-9]+\.[0-9]{2})\|[A-Z]{3}\|'
+      type: float
+    - key: currency
+      pattern: '\|[0-9.]+\|([A-Z]{3})\|'
+
+noteinfo:
+  name: NoteInfo CSV
+  description: Per-note denomination data (rolling files, indexed).
+  filename_patterns: ['(?i)\bnote_?info\b']
+  parser:
+    code: p2600n_noteinfo
+    type: csv
+    delimiter: ','
+    header_signature: 'index|time|denomination|count|result'
+    timestamp_column: Time
+    timestamp_format: '%Y-%m-%d %H:%M:%S'
+    columns:
+      Index: note_seq
+      Time: ts
+      Denomination: denomination
+      Count: note_count
+      Result: result
+  key_extract:
+    - key: amount
+      pattern: 'Denomination=([0-9.]+)'
+      type: float
+
+printer:
+  name: Receipt printer log
+  description: Receipt printing events.
+  filename_patterns: ['(?i)receipt_?printer']
+  parser:
+    code: p2600n_printer
+    type: line
+    extensions: [txt, log]
+    content_signatures: ['ReceiptPrinter:']
+    line_pattern: '^(?P<ts>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) ReceiptPrinter:\s+(?P<msg>.*)$'
+    timestamp_format: '%Y-%m-%d %H:%M:%S'
+
+host:
+  name: GRGCA10DEV host/interface log
+  description: Host send/receive protocol log.
+  filename_patterns: ['(?i)grgca10dev']
+  parser:
+    code: p2600n_host
+    type: line
+    extensions: [log, txt]
+    content_signatures: ['GRGCA10DEV']
+    line_pattern: '^(?P<ts>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3}) (?P<device>GRGCA10DEV) (?P<level>[A-Z]+)\s+(?P<msg>.*)$'
+    timestamp_format: '%Y-%m-%d %H:%M:%S.%f'
+  key_extract:
+    - key: txn_id
+      pattern: 'TXN[=:]\s*([A-Za-z0-9_-]+)'
+    - key: host_ref
+      pattern: 'REF[=:]\s*([A-Za-z0-9_-]+)'
