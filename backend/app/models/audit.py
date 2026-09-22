@@ -21,6 +21,9 @@ class AuditLog(BigIntegerPrimaryKeyMixin, Base):
     entity_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     detail: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     request_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # Phase 10: who did it (context-resolved), from where, and the outcome.
+    ip: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    result: Mapped[str] = mapped_column(String(16), default="success", nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), nullable=False
     )

@@ -7,11 +7,13 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_db
+from app.api.deps import get_current_user, get_db
 from app.schemas.dashboard import DashboardSummaryOut
 from app.services.dashboard_service import dashboard_service
 
-router = APIRouter(prefix="/dashboard", tags=["dashboard"])
+router = APIRouter(
+    prefix="/dashboard", tags=["dashboard"], dependencies=[Depends(get_current_user)]
+)
 
 
 def _parse_dt(value: str | None) -> datetime | None:

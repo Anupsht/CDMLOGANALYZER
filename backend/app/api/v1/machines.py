@@ -5,7 +5,8 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_db
+from app.api.deps import get_current_user, get_db
+from app.core.rbac import require_permission
 from app.schemas.common import ListResponse
 from app.schemas.dashboard import MachineHealthMetrics
 from app.schemas.machine import MachineCreate, MachineOut
@@ -13,7 +14,9 @@ from app.services.audit_service import audit_service
 from app.services.dashboard_service import dashboard_service
 from app.services.machine_service import machine_service
 
-router = APIRouter(prefix="/machines", tags=["machines"])
+router = APIRouter(
+    prefix="/machines", tags=["machines"], dependencies=[Depends(get_current_user)]
+)
 
 
 @router.get("", response_model=ListResponse[MachineOut])
@@ -26,7 +29,12 @@ def list_machines(
     return ListResponse(items=items, total=total, limit=limit, offset=offset)
 
 
-@router.post("", response_model=MachineOut, status_code=201)
+@router.post(
+    "",
+    response_model=MachineOut,
+    status_code=201,
+    dependencies=[Depends(require_permission("machines:write"))],
+)
 def create_machine(payload: MachineCreate, session: Session = Depends(get_db)) -> MachineOut:
     machine = machine_service.create(session, payload)
     audit_service.record(

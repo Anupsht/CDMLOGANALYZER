@@ -152,10 +152,14 @@ def register_exception_handlers(app: FastAPI) -> None:
     @app.exception_handler(StarletteHTTPException)
     async def handle_http_exception(_: Request, exc: StarletteHTTPException) -> JSONResponse:
         code = {
+            401: "unauthorized",
+            403: "forbidden",
             404: "not_found",
             405: "method_not_allowed",
             413: "file_too_large",
             422: "validation_error",
+            423: "account_locked",
+            429: "rate_limited",
         }.get(exc.status_code, f"http_{exc.status_code}")
         return _error_response(exc.status_code, code, str(exc.detail))
 

@@ -65,9 +65,26 @@ class SafeZipExtractor:
                 f"{settings.max_extract_files}."
             )
 
+        blocked = settings.blocked_archive_extension_set
+        ratio_limit = settings.max_zip_compression_ratio
         total = 0
         for info in infos:
             self._check_member_name(info.filename)
+            # Phase 10: reject executable/active-content members outright.
+            member_ext = PurePosixPath(info.filename.replace("\\", "/")).suffix.lower()
+            if member_ext and member_ext in blocked:
+                raise ArchiveError(
+                    f"Archive contains a forbidden file type ({member_ext}): {info.filename!r}"
+                )
+            # Phase 10: per-member compression ratio (zip-bomb hardening on
+            # top of the total extracted-size cap).
+            if info.compress_size > 0:
+                ratio = info.file_size / info.compress_size
+                if ratio > ratio_limit:
+                    raise ArchiveError(
+                        f"Archive member {info.filename!r} has a suspicious "
+                        f"compression ratio ({ratio:.0f}:1); possible zip bomb."
+                    )
             total += info.file_size
             if total > settings.max_extract_size_bytes:
                 raise ArchiveError(

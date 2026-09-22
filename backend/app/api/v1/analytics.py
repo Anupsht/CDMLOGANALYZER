@@ -10,8 +10,9 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_db
+from app.api.deps import get_current_user, get_db
 from app.core.errors import NotFoundError, ValidationError
+from app.core.rbac import require_permission
 from app.models.rule_suggestion import STATUSES, RuleSuggestion
 from app.schemas.analytics import (
     CrossMachineOut,
@@ -36,7 +37,11 @@ from app.services.analytics_service import (
 )
 from app.services.audit_service import audit_service
 
-router = APIRouter(prefix="/analytics", tags=["analytics"])
+router = APIRouter(
+    prefix="/analytics",
+    tags=["analytics"],
+    dependencies=[Depends(get_current_user), Depends(require_permission("analytics:read"))],
+)
 
 
 @router.get("/overview", response_model=OverviewOut)
@@ -138,7 +143,12 @@ def list_rule_suggestions(
     return [RuleSuggestionOut.model_validate(r) for r in rows]
 
 
-@router.post("/rule-suggestions", response_model=RuleSuggestionOut, status_code=201)
+@router.post(
+    "/rule-suggestions",
+    response_model=RuleSuggestionOut,
+    status_code=201,
+    dependencies=[Depends(require_permission("rules:suggest"))],
+)
 def create_rule_suggestion(
     payload: RuleSuggestionCreate, session: Session = Depends(get_db)
 ) -> RuleSuggestionOut:
@@ -166,7 +176,11 @@ def create_rule_suggestion(
     return RuleSuggestionOut.model_validate(row)
 
 
-@router.patch("/rule-suggestions/{suggestion_id}", response_model=RuleSuggestionOut)
+@router.patch(
+    "/rule-suggestions/{suggestion_id}",
+    response_model=RuleSuggestionOut,
+    dependencies=[Depends(require_permission("rules:review"))],
+)
 def update_rule_suggestion(
     suggestion_id: str,
     payload: RuleSuggestionUpdate,

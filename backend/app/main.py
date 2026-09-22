@@ -71,6 +71,11 @@ def create_app() -> FastAPI:
     )
 
     # Middleware (order matters: outermost first)
+    # Phase 10: security headers + per-IP rate limiting (settings-driven).
+    from app.core.hardening import RateLimitMiddleware, SecurityHeadersMiddleware
+
+    app.add_middleware(RateLimitMiddleware)
+    app.add_middleware(SecurityHeadersMiddleware)
     app.add_middleware(RequestContextMiddleware)
     app.add_middleware(
         CORSMiddleware,

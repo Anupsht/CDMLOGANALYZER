@@ -162,6 +162,11 @@ def seed_reference_data() -> None:
         if session.query(User).filter(User.username == "system").one_or_none() is None:
             session.add(User(username="system", role="service", full_name="System service account"))
 
+        # Phase 10: guarantee an initial ADMIN account (+ demo users in dev).
+        from app.services.auth_service import auth_service
+
+        auth_service.ensure_bootstrap_admin(session)
+
         session.commit()
         logger.info("Reference data seeded", extra={"operation": "database.seed"})
 

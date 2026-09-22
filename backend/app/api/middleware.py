@@ -8,6 +8,8 @@ from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoin
 from starlette.requests import Request
 from starlette.responses import Response
 
+from app.core.context import set_ip
+from app.core.hardening import client_ip
 from app.core.logging import (
     bind_request_id,
     current_request_id,
@@ -24,6 +26,7 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
         request_id = request.headers.get("X-Request-ID") or new_request_id()
         bind_request_id(request_id)
         request.state.request_id = request_id
+        set_ip(client_ip(request))  # Phase 10: context for audit entries
 
         started = monotonic_ms()
         try:

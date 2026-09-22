@@ -5,7 +5,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_db
+from app.api.deps import get_current_user, get_db
 from app.schemas.common import ListResponse
 from app.schemas.diagnostics import DiagnosticReportOut
 from app.schemas.hardware import HardwareTimelineOut
@@ -17,7 +17,9 @@ from app.schemas.transaction import (
 from app.services.hardware_service import hardware_service
 from app.services.transaction_service import transaction_service
 
-router = APIRouter(prefix="/transactions", tags=["transactions"])
+router = APIRouter(
+    prefix="/transactions", tags=["transactions"], dependencies=[Depends(get_current_user)]
+)
 
 
 @router.get("", response_model=ListResponse[TransactionOut])

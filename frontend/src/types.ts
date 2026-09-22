@@ -600,3 +600,45 @@ export const FLAG_TONE: Record<MaintenanceFlag, string> = {
   WARNING: "amber",
   HIGH_RISK: "rose",
 };
+
+// ---- Phase 10: auth, users, cases, audit -----------------------------------
+
+export type Role = "ADMIN" | "TECHNICIAN" | "SUPERVISOR" | "ANALYST" | "VIEWER";
+
+export interface UserAccount {
+  id: string;
+  username: string;
+  full_name?: string | null;
+  email?: string | null;
+  role: Role;
+  is_active: boolean;
+  last_login_at?: string | null;
+  created_at?: string | null;
+}
+
+export interface CaseItem {
+  id: string;
+  title: string;
+  description?: string | null;
+  status: "OPEN" | "IN_REVIEW" | "CLOSED";
+  priority: "LOW" | "MEDIUM" | "HIGH";
+  machine_id?: string | null;
+  transaction_ref?: string | null;
+  created_by?: string | null;
+  closed_at?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface AuditEntry {
+  id: number;
+  actor?: string | null;
+  action: string;
+  entity_type?: string | null;
+  entity_id?: string | null;
+  detail?: Record<string, unknown> | null;
+  request_id?: string | null;
+  ip?: string | null;
+  result?: string | null;
+  created_at?: string | null;
+}

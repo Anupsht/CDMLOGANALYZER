@@ -96,6 +96,45 @@ In the UI: **Analytics** page — key-question insights, trend charts, model
 comparison, machine ranking, error frequency with event neighbours, jam trends,
 maintenance flags and the rule-suggestion review workflow.
 
+## Production security, RBAC & hardening (Phase 10)
+
+The API is now **authenticated end-to-end**:
+
+- **Authentication** — PBKDF2-HMAC-SHA256 password hashing (salted, ~200k
+  iterations, plaintext never stored), opaque bearer session tokens stored
+  server-side as SHA-256 hashes with expiry + revocation, password policy
+  (length + character classes), brute-force lockout (5 failures → 15 min),
+  bootstrap ADMIN on first start (`CDM_BOOTSTRAP_ADMIN_PASSWORD`).
+- **Roles** — ADMIN / TECHNICIAN / SUPERVISOR / ANALYST / VIEWER enforced by
+  an explicit permission matrix (`app/core/rbac.py`): technicians upload,
+  analyze, open cases and generate reports; supervisors review/approve rule
+  suggestions and audit; analysts get analytics + history; viewers read only.
+  The `service` account has no API permissions.
+- **Audit logging** — every security-relevant action records actor, action,
+  timestamp, resource, IP and result (upload, case, analysis run, report,
+  rule review, model config change, logins) — readable at
+  `GET /api/audit` (ADMIN/SUPERVISOR).
+- **API security** — authentication on all surfaces except health probes,
+  per-IP rate limiting (strict on `/api/auth/*`), security headers
+  (nosniff / frame-deny / referrer-policy / CSP), env-driven CORS,
+  centralized error envelopes (no stack traces).
+- **File security** — ZIP-slip path rejection, per-member compression-ratio
+  and total-size bomb caps, executable-extension blocklist, magic-byte
+  verification for `.zip` uploads, extension allowlist, size caps, sanitized
+  filenames, storage-root escape refusal.
+- **Cases** — technicians open investigation cases tied to machines /
+  transaction references; supervisors review and close; fully audited.
+- **Monitoring** — `/healthz` (liveness), `/api/health` (API+DB),
+  `/api/readiness` (database / Redis / background workers component probe).
+- **Configuration** — everything environment-driven; `.env.example` documents
+  every variable (including rate limits, lockout, session TTL). Secrets are
+  never committed.
+
+Final documentation lives in `docs/guides/`: Administrator, Technician,
+Developer, Deployment, Database, Model Adapter, Parser, Rule Engine and
+Troubleshooting guides (backup/restore procedures in the Administrator and
+Database guides).
+
 ## Quick start (Docker Compose)
 
 ```bash
@@ -241,3 +280,4 @@ Tests are self-contained (temporary SQLite + eager queue) — no MySQL/Redis nee
 | 7 | Technician dashboard (transactions, timeline, health, audit) | ✅ done |
 | 8 | AI explanations & vendor reporting (explanation layer only) | ✅ done |
 | 9 | Historical analytics, pattern detection, cross-machine analysis, maintenance insights, rule suggestions | ✅ done |
+| 10 | Production security: authentication, RBAC, audit trail, API/file hardening, monitoring, docs | ✅ done |

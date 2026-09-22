@@ -2,6 +2,9 @@
 // server (and nginx in production) proxies them to the backend.
 
 import type {
+  AuditEntry,
+  CaseItem,
+  UserAccount,
   AIExplanation,
   AnalyticsOverview,
   CrossMachineOut,
@@ -43,8 +46,36 @@ export class ApiError extends Error {
   }
 }
 
+function authToken(): string | null {
+  try {
+    return localStorage.getItem("cdm_token");
+  } catch {
+    return null;
+  }
+}
+
+function withAuth(init?: RequestInit): RequestInit {
+  const token = authToken();
+  const base: RequestInit = init ?? {};
+  if (!token) return base;
+  return {
+    ...base,
+    headers: { ...(base.headers ?? {}), Authorization: `Bearer ${token}` },
+  };
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${BASE}${path}`, init);
+  const response = await fetch(`${BASE}${path}`, withAuth(init));
+  if (response.status === 401 && !path.startsWith("/auth/login")) {
+    // Session expired/revoked: drop local state and show the login page.
+    try {
+      localStorage.removeItem("cdm_token");
+      localStorage.removeItem("cdm_user");
+    } catch { /* ignore */ }
+    if (!window.location.pathname.startsWith("/login")) {
+      window.location.assign("/login");
+    }
+  }
   if (!response.ok) {
     let code = `http_${response.status}`;
     let message = response.statusText || "Request failed";
@@ -118,7 +149,82 @@ export interface LogLinesQuery {
   offset?: number;
 }
 
+// ---- Phase 10: auth / cases / users / audit ---------------------------------
+
+export interface LoginResponse {
+  token: string;
+  token_type: string;
+  expires_at: string;
+  user: UserAccount;
+}
+
 export const api = {
+  login: (username: string, password: string) =>
+    request<LoginResponse>("/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, password }),
+    }),
+
+  logout: () => request<void>("/auth/logout", { method: "POST" }),
+
+  me: () => request<UserAccount>("/auth/me"),
+
+  changePassword: (oldPassword: string, newPassword: string) =>
+    request<void>("/auth/change-password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ old_password: oldPassword, new_password: newPassword }),
+    }),
+
+  listUsers: () => request<UserAccount[]>("/auth/users"),
+
+  createUser: (payload: { username: string; password: string; role: string; full_name?: string }) =>
+    request<UserAccount>("/auth/users", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }),
+
+  updateUser: (id: string, payload: { role?: string; is_active?: boolean }) =>
+    request<UserAccount>(`/auth/users/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }),
+
+  resetUserPassword: (id: string, newPassword: string) =>
+    request<void>(`/auth/users/${id}/reset-password`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ new_password: newPassword }),
+    }),
+
+  listCases: (params?: { status?: string }) =>
+    request<CaseItem[]>(`/cases${query(params ?? {})}`),
+
+  createCase: (payload: {
+    title: string;
+    description?: string;
+    priority?: string;
+    machine_id?: string;
+    transaction_ref?: string;
+  }) =>
+    request<CaseItem>("/cases", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }),
+
+  updateCase: (id: string, payload: { status?: string; priority?: string; title?: string }) =>
+    request<CaseItem>(`/cases/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }),
+
+  listAudit: (params?: { action?: string; actor?: string; result?: string; limit?: number }) =>
+    request<AuditEntry[]>(`/audit${query(params ?? {})}`),
   health: () => request<Health>("/health"),
 
   listLogs: (q: LogsQuery = {}) =>
@@ -289,6 +395,8 @@ export const api = {
         }
       };
       xhr.onerror = () => reject(new ApiError(0, "network_error", "Network error during upload", ""));
+      const token = authToken();
+      if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`);
       xhr.send(form);
     });
   },

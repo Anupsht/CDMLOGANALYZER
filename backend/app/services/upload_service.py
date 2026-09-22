@@ -72,6 +72,17 @@ class UploadService:
             max_bytes=settings.max_upload_size_bytes,
         )
 
+        # 3b) Phase 10: content check — a ".zip" must really be a ZIP
+        # (magic bytes), not a disguised executable or random payload.
+        if extension == "zip":
+            with self.storage.resolve(relative_path).open("rb") as fh:
+                magic = fh.read(4)
+            if not magic.startswith(b"PK"):
+                self.storage.resolve(relative_path).unlink(missing_ok=True)
+                raise ValidationError(
+                    "Uploaded '.zip' file is not a valid ZIP archive (bad magic bytes)."
+                )
+
         # 4) duplicate detection (same checksum among earlier uploads)
         duplicate_of = (
             session.query(LogFile)

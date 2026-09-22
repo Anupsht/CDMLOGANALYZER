@@ -7,8 +7,9 @@ import logging
 from fastapi import APIRouter, Depends, File, Form, Query, UploadFile
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_db
+from app.api.deps import get_current_user, get_db
 from app.core.logging import log_operation
+from app.core.rbac import require_permission
 from app.models.log_file import LogLine
 from app.schemas.log_file import (
     LogFileCreateResult,
@@ -23,7 +24,9 @@ from app.services.upload_service import upload_service
 from app.tasks import get_task_queue
 from app.tasks.queue import TASK_PROCESS_UPLOAD
 
-router = APIRouter(prefix="/logs", tags=["logs"])
+router = APIRouter(
+    prefix="/logs", tags=["logs"], dependencies=[Depends(get_current_user)]
+)
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +51,12 @@ def _to_out(row) -> LogFileOut:
     return out
 
 
-@router.post("/upload", response_model=LogFileCreateResult, status_code=201)
+@router.post(
+    "/upload",
+    response_model=LogFileCreateResult,
+    status_code=201,
+    dependencies=[Depends(require_permission("logs:upload"))],
+)
 async def upload_log(
     file: UploadFile = File(..., description="Log file (.txt, .log, .csv, .json) or ZIP archive"),
     machine_id: str | None = Form(default=None),

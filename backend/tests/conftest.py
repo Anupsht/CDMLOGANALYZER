@@ -20,6 +20,10 @@ os.environ.setdefault("CDM_REDIS_URL", "")
 os.environ.setdefault("CDM_CELERY_BROKER_URL", "")
 os.environ.setdefault("CDM_LOG_FORMAT", "console")
 os.environ.setdefault("CDM_LOG_LEVEL", "INFO")
+# Phase 10: fast hashes + disabled rate limits in the test suite.
+os.environ.setdefault("CDM_PASSWORD_HASH_ITERATIONS", "1000")
+os.environ.setdefault("CDM_RATE_LIMIT_API_PER_MINUTE", "0")
+os.environ.setdefault("CDM_RATE_LIMIT_AUTH_PER_MINUTE", "0")
 
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
@@ -40,22 +44,59 @@ def _fresh_database():
     Base.metadata.drop_all(bind=database.engine)
 
 
+def _override_get_db():
+    from app.database.session import database
+
+    session = database.get_session()
+    try:
+        yield session
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()
+
+
 @pytest.fixture
 def client():
-    """FastAPI TestClient with an app-lifespan run (startup included)."""
-    from app.database.session import database, get_db
-    from app.main import app
+    """TestClient pre-authenticated as the bootstrap ADMIN.
 
-    def _override_get_db():
+    Phase 10 made the API authenticated; existing tests exercise business
+    behaviour, so the default fixture overrides ``get_current_user`` with
+    the seeded admin. Phase-10 security tests use ``auth_client`` (no
+    override) to exercise the real login/RBAC paths.
+    """
+    from app.api.deps import get_current_user, get_db
+    from app.database.session import database
+    from app.main import app
+    from app.models.user import User
+
+    def _fake_admin():
         session = database.get_session()
         try:
-            yield session
-            session.commit()
-        except Exception:
-            session.rollback()
-            raise
+            return session.query(User).filter(User.username == "admin").one()
         finally:
             session.close()
+
+    app.dependency_overrides[get_db] = _override_get_db
+    app.dependency_overrides[get_current_user] = _fake_admin
+    with TestClient(app) as test_client:
+        yield test_client
+    app.dependency_overrides.clear()
+
+
+@pytest.fixture
+def auth_client():
+    """TestClient WITHOUT the auth override — real login/RBAC behaviour.
+
+    Bootstrap accounts exist (seeded): admin/Admin#12345, technician/
+    Tech#12345, supervisor/Super#12345, analyst/Analyst#12345,
+    viewer/Viewer#12345 (test-environment passwords, hashed with 1000
+    iterations for speed).
+    """
+    from app.database.session import get_db
+    from app.main import app
 
     app.dependency_overrides[get_db] = _override_get_db
     with TestClient(app) as test_client:

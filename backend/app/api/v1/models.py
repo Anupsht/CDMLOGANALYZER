@@ -5,13 +5,17 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_db
+from app.api.deps import get_current_user, get_db
+from app.core.rbac import require_permission
 from app.core.registry import model_registry
+from app.services.audit_service import audit_service
 from app.schemas.machine import MachineModelOut
 from app.schemas.model import ModelToggleResponse
 from app.services.machine_service import machine_service
 
-router = APIRouter(prefix="/models", tags=["models"])
+router = APIRouter(
+    prefix="/models", tags=["models"], dependencies=[Depends(get_current_user)]
+)
 
 
 @router.get("", response_model=list[MachineModelOut])
@@ -122,15 +126,39 @@ def get_model(model_id: str, session: Session = Depends(get_db)) -> MachineModel
     raise NotFoundError(f"Machine model not found: {model_id}")
 
 
-@router.post("/{model_id}/enable", response_model=ModelToggleResponse)
+@router.post(
+    "/{model_id}/enable",
+    response_model=ModelToggleResponse,
+    dependencies=[Depends(require_permission("models:write"))],
+)
 def enable_model(model_id: str, session: Session = Depends(get_db)) -> ModelToggleResponse:
     result = model_registry.enable_model(model_id, session)
+    session.commit()
+    audit_service.record(
+        session,
+        action="model.configuration_changed",
+        entity_type="machine_model",
+        entity_id=model_id,
+        detail={"change": "enable"},
+    )
     session.commit()
     return ModelToggleResponse(**result)
 
 
-@router.post("/{model_id}/disable", response_model=ModelToggleResponse)
+@router.post(
+    "/{model_id}/disable",
+    response_model=ModelToggleResponse,
+    dependencies=[Depends(require_permission("models:write"))],
+)
 def disable_model(model_id: str, session: Session = Depends(get_db)) -> ModelToggleResponse:
     result = model_registry.disable_model(model_id, session)
+    session.commit()
+    audit_service.record(
+        session,
+        action="model.configuration_changed",
+        entity_type="machine_model",
+        entity_id=model_id,
+        detail={"change": "disable"},
+    )
     session.commit()
     return ModelToggleResponse(**result)

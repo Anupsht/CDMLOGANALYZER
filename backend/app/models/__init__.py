@@ -12,6 +12,8 @@ evidence backbone those tables will reference.
 """
 
 from app.models.user import User
+from app.models.auth_session import AuthSession
+from app.models.case import Case
 from app.models.machine import Machine, MachineComponent, MachineModel
 from app.models.log_file import LogFile, LogLine, LogSource
 from app.models.parser import ParserVersion
@@ -32,6 +34,8 @@ from app.models.rule_suggestion import RuleSuggestion
 
 __all__ = [
     "User",
+    "AuthSession",
+    "Case",
     "Machine",
     "MachineModel",
     "MachineComponent",

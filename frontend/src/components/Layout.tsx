@@ -1,20 +1,25 @@
 import { useEffect, useState } from "react";
-import { NavLink, Outlet } from "react-router-dom";
+import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { api } from "../api/client";
 import type { Health } from "../types";
+import { useAuth } from "../auth";
 
 const NAV = [
-  { to: "/", label: "Dashboard", icon: "◧" },
-  { to: "/transactions", label: "Transactions", icon: "⇄" },
-  { to: "/health", label: "Machine Health", icon: "♥" },
-  { to: "/analytics", label: "Analytics", icon: "📈" },
-  { to: "/logs", label: "Logs", icon: "▤" },
-  { to: "/models", label: "Models", icon: "⛭" },
-  { to: "/machines", label: "Machines", icon: "🏧" },
+  { to: "/", label: "Dashboard", icon: "◧", perm: undefined },
+  { to: "/transactions", label: "Transactions", icon: "⇄", perm: undefined },
+  { to: "/health", label: "Machine Health", icon: "♥", perm: undefined },
+  { to: "/cases", label: "Cases", icon: "🗂", perm: undefined },
+  { to: "/analytics", label: "Analytics", icon: "📈", perm: "analytics:read" },
+  { to: "/logs", label: "Logs", icon: "▤", perm: undefined },
+  { to: "/models", label: "Models", icon: "⛭", perm: undefined },
+  { to: "/machines", label: "Machines", icon: "🏧", perm: undefined },
+  { to: "/users", label: "Users", icon: "👤", perm: "users:manage" },
 ];
 
 export default function Layout() {
   const [health, setHealth] = useState<Health | null>(null);
+  const { user, logout, can } = useAuth();
+  const navigate = useNavigate();
 
   useEffect(() => {
     let cancelled = false;
@@ -45,7 +50,7 @@ export default function Layout() {
           </div>
         </div>
         <nav className="mt-2 flex-1 space-y-1 px-3">
-          {NAV.map((item) => (
+          {NAV.filter((item) => !item.perm || can(item.perm)).map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
@@ -75,6 +80,25 @@ export default function Layout() {
             </span>
           </div>
           {health && <div className="mt-1 text-slate-600">{health.version} · {health.environment}</div>}
+          {user && (
+            <div className="mt-3 flex items-center gap-2 border-t border-slate-800 pt-3">
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-xs font-medium text-slate-300">{user.username}</div>
+                <div className="text-[10px] uppercase tracking-wide text-indigo-400">{user.role}</div>
+              </div>
+              <button
+                onClick={async () => {
+                  try { await api.logout(); } catch { /* session may be gone */ }
+                  logout();
+                  navigate("/login");
+                }}
+                className="rounded border border-slate-700 px-2 py-1 text-[11px] text-slate-400 hover:bg-slate-800 hover:text-slate-200"
+                title="Revoke this session"
+              >
+                Log out
+              </button>
+            </div>
+          )}
         </div>
       </aside>
 
